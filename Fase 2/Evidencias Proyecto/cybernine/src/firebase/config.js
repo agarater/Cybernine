@@ -8,13 +8,13 @@ import { getFirestore } from "firebase/firestore"; // Herramienta para la base d
 
 // La configuración de TU aplicación web que te dio Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyD9M_TicmT7w6CINBenAxvTuKgvQOGK1WE",
-  authDomain: "cybernine-2025.firebaseapp.com",
-  projectId: "cybernine-2025",
-  storageBucket: "cybernine-2025.firebasestorage.app",
-  messagingSenderId: "895498127771",
-  appId: "1:895498127771:web:5378c33075170c0fff793e",
-  measurementId: "G-JNFPC4M3DZ"
+  apiKey: import.meta.env.VITE_API_KEY,
+  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_APP_ID,
+  measurementId: import.meta.env.VITE_MEASUREMENT_ID,
 };
 
 // Inicia Firebase
