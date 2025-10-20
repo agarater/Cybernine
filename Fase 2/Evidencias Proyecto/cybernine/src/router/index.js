@@ -6,6 +6,13 @@ import InventarioView from '../views/InventarioView.vue'; // <-- 1. Importa la n
 
 // Aquí defines todas las rutas de tu aplicación
 const routes = [
+  // --- AÑADE ESTE BLOQUE ---
+  {
+    path: '/', // Esta es la ruta raíz o de inicio
+    name: 'Home',
+    redirect: '/login' // Redirige automáticamente a /login
+  },
+  // -----------------------
   {
     path: '/login',
     name: 'Login',

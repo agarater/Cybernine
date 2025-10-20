@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap'); /* Fuente moderna */
+
+:root {
+  --primary-color: #4CAF50; /* Un verde vibrante pero elegante */
+  --secondary-color: #2196F3; /* Azul para énfasis */
+  --background-dark: #1a1a2e; /* Fondo oscuro principal */
+  --card-dark: #16213e; /* Fondo de la tarjeta más claro que el principal */
+  --text-light: #e0e0e0;
+  --text-dark: #cccccc;
+  --border-color: #0f3460;
+  --input-bg: #0f3460;
+  --button-hover: #3e8e41;
+}
+
+body {
+  margin: 0;
+  font-family: 'Montserrat', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--background-dark);
+  color: var(--text-light);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 20px;
+}
