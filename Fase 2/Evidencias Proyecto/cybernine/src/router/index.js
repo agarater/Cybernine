@@ -2,6 +2,7 @@
 
 import { createRouter, createWebHistory } from 'vue-router';
 import LoginView from '../views/LoginView.vue'; // Importa tu vista de Login
+import InventarioView from '../views/InventarioView.vue'; // <-- 1. Importa la nueva vista
 
 // Aquí defines todas las rutas de tu aplicación
 const routes = [
@@ -10,12 +11,11 @@ const routes = [
     name: 'Login',
     component: LoginView
   },
-  // Agregaremos más rutas aquí después, como la del inventario
-  // {
-  //   path: '/inventario',
-  //   name: 'Inventario',
-  //   component: () => import('../views/InventarioView.vue') // Ejemplo de otra ruta
-  // }
+  { // <-- 2. Agrega este nuevo objeto para la ruta de inventario
+    path: '/inventario',
+    name: 'Inventario',
+    component: InventarioView // Ejemplo de otra ruta
+  }
 ];
 
 // Crea la instancia del router
