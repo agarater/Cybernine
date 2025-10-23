@@ -1,12 +1,19 @@
 // src/router/index.js
 
 import { createRouter, createWebHistory } from 'vue-router';
-import LoginView from '../views/LoginView.vue'; // Importa tu vista de Login
-import InventarioView from '../views/InventarioView.vue'; // <-- 1. Importa la nueva vista
+
+// --- CAMBIO (Code Splitting) ---
+// Ya no importamos las vistas aquí arriba.
+// Al eliminarlas, evitamos que se agrupen en un solo archivo gigante.
+//
+// import LoginView from '../views/LoginView.vue'; // Importa tu vista de Login (Eliminada para carga diferida)
+// import InventarioView from '../views/InventarioView.vue'; // <-- 1. Importa la nueva vista (Eliminada para carga diferida)
+// ---------------------------------
+
 
 // Aquí defines todas las rutas de tu aplicación
 const routes = [
-  // --- AÑADE ESTE BLOQUE ---
+  // --- AÑADE ESTE BLOQUE --- (Este comentario se queda como estaba)
   {
     path: '/', // Esta es la ruta raíz o de inicio
     name: 'Home',
@@ -16,12 +23,24 @@ const routes = [
   {
     path: '/login',
     name: 'Login',
-    component: LoginView
+    
+    // --- CAMBIO (Code Splitting) ---
+    // En lugar de: component: LoginView
+    // Usamos esta función (importación dinámica).
+    // Esto le dice a Vite que cree un "chunk" separado para el Login.
+    component: () => import('../views/LoginView.vue')
   },
-  { // <-- 2. Agrega este nuevo objeto para la ruta de inventario
+  { // <-- 2. Agrega este nuevo objeto para la ruta de inventario (Este comentario se queda)
     path: '/inventario',
     name: 'Inventario',
-    component: InventarioView // Ejemplo de otra ruta
+    
+    // --- CAMBIO (Code Splitting) ---
+    // En lugar de: component: InventarioView
+    // Hacemos lo mismo para la vista de inventario.
+    // Esto resuelve la advertencia del "chunk" de 500kb,
+    // ya que el código de Inventario solo se descargará
+    // cuando el usuario realmente lo necesite (después de iniciar sesión).
+    component: () => import('../views/InventarioView.vue')
   }
 ];
 
