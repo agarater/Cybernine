@@ -84,6 +84,11 @@ onMounted(() => {
 
 <style scoped>
 /* Estilos para que se vea un poco más ordenado */
+
+h3 {
+  color: black; 
+}
+
 form {
   margin-bottom: 20px;
   padding: 15px;
@@ -110,5 +115,6 @@ li {
   border: 1px solid #ddd;
   margin-bottom: 5px;
   border-radius: 5px;
+  color: black; /* Texto de la lista en negro*/
 }
 </style>

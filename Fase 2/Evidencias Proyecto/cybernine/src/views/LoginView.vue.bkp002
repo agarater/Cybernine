@@ -40,6 +40,20 @@
 
       <button type="submit" class="login-button">Iniciar Sesión</button>
     </form>
+    
+    <div class="social-login">
+      <p class="social-text">O inicia sesión con</p>
+      <div class="social-buttons">
+        <button class="social-button google">
+          <img src="/google-icon.svg" alt="Google" class="social-icon" />
+          Google
+        </button>
+        <button class="social-button apple">
+          <img src="/apple-icon.svg" alt="Apple" class="social-icon" />
+          Apple
+        </button>
+      </div>
+    </div>
 
     <div class="signup-link">
       ¿No tienes una cuenta? <a href="#" @click.prevent="handleRegister" class="signup-text">Regístrate</a>
