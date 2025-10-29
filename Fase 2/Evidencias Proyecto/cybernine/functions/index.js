@@ -1,5 +1,5 @@
 // functions/index.js
-// v7 - Corrigiendo al modelo "2.5-flash" (de la lista)
+// v8 - Corrigiendo al modelo "2.5-flash" (de la lista)
 
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
 const {onRequest} = require("firebase-functions/v2/https"); // Mantenemos esto por ahora
@@ -25,7 +25,7 @@ exports.getAISuggestion = onCall({secrets: ["GOOGLEAI_KEY"]}, async (request) =>
   }
 
   productos.forEach((producto) => {
-    prompt += `- ${producto.nombre}: ${producto.stock} unidades\n`;
+    prompt += `- ${producto.nombre}: ${producto.calculatedStock} unidades\n`; // <-- ¡CAMBIO AQUÍ!
   });
 
   prompt += "\nDame 3 sugerencias cortas y accionables:";

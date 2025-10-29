@@ -12,6 +12,7 @@
     "bootstrap": "^5.3.8",
     "bootstrap-vue-3": "^0.3.12",
     "firebase": "^12.4.0",
+    "html5-qrcode": "^2.3.8",
     "vue": "^3.5.22",
     "vue-router": "^4.6.3"
   },
