@@ -69,7 +69,7 @@ TUS 4 SUGERENCIAS (Empieza directamente con los emojis):
 
   try {
     // Usamos gemini-1.5-flash, es rápido y fiable para esto.
-    const model = genAI.getGenerativeModel({model: "gemini-1.5-flash"});
+    const model = genAI.getGenerativeModel({model: "gemini-2.5-flash"});
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -105,5 +105,3 @@ exports.listMyModels = onRequest({secrets: ["GOOGLEAI_KEY"]}, async (req, res) =
     res.status(500).send("Error al listar modelos: " + error.message);
   }
 });
-
-// ¡Línea en blanco al final!
