@@ -349,7 +349,7 @@ const cancelarRegistro = () => {
 
 // --- FUNCIÓN PARA INDICAR "DISPONIBLE EN ACTUALIZACIÓN FUTURA" ---
 const showFilterNotice = () => {
-  alert('Disponible en futura actualización');
+  alert('"Filtrar por" Disponible en futura actualización');
 };
 
 

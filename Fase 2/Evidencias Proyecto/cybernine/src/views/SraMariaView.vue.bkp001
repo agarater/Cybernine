@@ -3,11 +3,7 @@
     
     <div class="header-section">
       <div class="avatar-container">
-        <img 
-          src="/icons/sra-maria.png" 
-          alt="Sra. MarIA" 
-          class="avatar-image"
-        />
+        <span class="avatar-emoji">👵</span>
       </div>
       <h1>Hola, soy la Sra. MarIA</h1>
       <p class="subtitle">Tu asistente de inventario inteligente</p>
@@ -22,10 +18,9 @@
       <button 
         @click="triggerConsulta" 
         class="consulta-button"
-        :disabled="isLoadingAI || isLoadingCatalog || productsCatalog.length === 0"
+        :disabled="isLoadingAI || productsCatalog.length === 0"
       >
-        <span v-if="!isLoadingAI && !isLoadingCatalog">Consultar ahora 💬</span>
-        <span v-else-if="isLoadingCatalog">Cargando datos...</span>
+        <span v-if="!isLoadingAI">Consultar ahora 💬</span>
         <span v-else>Consultando...</span>
       </button>
       
@@ -67,142 +62,84 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import SugerenciasIA from '@/components/SugerenciasIA.vue';
 import { db, auth } from '@/firebase/config';
-// AGREGADO: getDocs para poder leer los movimientos
-import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
+// Referencia al componente hijo para llamar sus métodos
 const sugerenciasRef = ref(null);
-const isLoadingAI = ref(false);
-const isLoadingCatalog = ref(true);
+
+const isLoadingAI = ref(false); // Estado de carga de la IA
+const isLoadingCatalog = ref(true); // Estado de carga del catálogo
 const productsCatalog = ref([]);
 let unsubscribeCatalog = null;
 
+// Función que recibe el estado de carga desde el componente hijo
 const handleLoadingUpdate = (status) => {
   isLoadingAI.value = status;
 };
 
+// Función que se ejecuta al presionar el botón principal
 const triggerConsulta = () => {
+  // Llamamos al método expuesto por el componente hijo
   if (sugerenciasRef.value) {
-    // Un console.log para verificar qué le estamos enviando a la IA antes de salir
-    console.log("Datos enviados a la IA:", JSON.parse(JSON.stringify(productsCatalog.value)));
     sugerenciasRef.value.obtenerSugerencia();
   }
 };
 
-// --- NUEVA FUNCIÓN: Esta es la clave. Calcula el stock leyendo los movimientos ---
-const recalculateStockForAI = async (userId, currentProductsList) => {
-  if (currentProductsList.length === 0) {
-    productsCatalog.value = [];
-    isLoadingCatalog.value = false;
-    return;
-  }
-
-  try {
-    // 1. Buscamos TODOS los movimientos de este usuario
-    const movementsQuery = query(collection(db, "inventory_movements"), where("userId", "==", userId));
-    const movementSnapshot = await getDocs(movementsQuery);
+// Cargar el catálogo de productos del usuario actual
+onMounted(() => {
+  const user = auth.currentUser;
+  if (user) {
+    const q = query(collection(db, "products"), where("userId", "==", user.uid));
     
-    // 2. Agrupamos los movimientos por ID de producto
-    const movementsByProduct = {};
-    movementSnapshot.forEach(doc => {
-      const movement = doc.data();
-      if (!movementsByProduct[movement.productId]) {
-        movementsByProduct[movement.productId] = [];
-      }
-      movementsByProduct[movement.productId].push(movement);
-    });
-
-    // 3. Recorremos la lista de productos y calculamos el total para cada uno
-    const updatedCatalog = currentProductsList.map(product => {
-      let stock = 0;
-      const productMovements = movementsByProduct[product.id] || [];
-
-      productMovements.forEach(move => {
-        if (move.tipo === 'entrada' || move.tipo === 'ajuste') { 
-          // Asumimos que el ajuste ya viene con el signo correcto en la BD si lo guardaste así
-          stock += move.cantidad;
-        } else if (move.tipo === 'salida') {
-          stock -= move.cantidad;
+    unsubscribeCatalog = onSnapshot(q, (snapshot) => {
+      const tempProducts = [];
+      snapshot.forEach(doc => {
+        // Solo productos no eliminados
+        if (!doc.data().eliminado) {
+           tempProducts.push({ id: doc.id, ...doc.data() });
         }
       });
-      // ¡AQUÍ ES DONDE SE AGREGA LA CANTIDAD AL PRODUCTO!
-      return { ...product, calculatedStock: stock };
+      productsCatalog.value = tempProducts;
+      isLoadingCatalog.value = false;
+    }, (error) => {
+      console.error("Error al cargar el catálogo:", error);
+      isLoadingCatalog.value = false;
     });
-
-    // 4. Actualizamos la lista final que usará la IA
-    productsCatalog.value = updatedCatalog;
-
-  } catch (error) {
-    console.error("Error recalculando stock para IA:", error);
-    // Si falla, al menos mostramos los productos sin stock
-    productsCatalog.value = currentProductsList;
-  } finally {
-    isLoadingCatalog.value = false;
+  } else {
+      // Manejar caso de no usuario si es necesario, aunque el router debería protegerlo
+      isLoadingCatalog.value = false;
   }
-};
-// --------------------------------------------------------------------------------
+});
 
-
-onMounted(() => {
-  // Usamos onAuthStateChanged para asegurar que tenemos el usuario
-  const unsubscribeAuth = auth.onAuthStateChanged(user => {
-    if (user) {
-      isLoadingCatalog.value = true;
-      const q = query(collection(db, "products"), where("userId", "==", user.uid));
-      
-      unsubscribeCatalog = onSnapshot(q, async (snapshot) => {
-        const tempProductsBasic = [];
-        snapshot.forEach(doc => {
-          if (!doc.data().eliminado) {
-             // Aquí solo obtenemos nombre, marca, etc. NO el stock.
-             tempProductsBasic.push({ id: doc.id, ...doc.data() });
-          }
-        });
-        
-        // --- CAMBIO IMPORTANTE: Ahora llamamos a la función que calcula ---
-        // Le pasamos la lista básica y esperamos a que le agregue los stocks
-        await recalculateStockForAI(user.uid, tempProductsBasic);
-        
-      }, (error) => {
-        console.error("Error al cargar el catálogo base:", error);
-        isLoadingCatalog.value = false;
-      });
-    } else {
-        isLoadingCatalog.value = false;
-        // Opcional: redirigir al login si no hay usuario
-    }
-  });
-
-  onUnmounted(() => {
-    if (unsubscribeCatalog) unsubscribeCatalog();
-    unsubscribeAuth(); // Importante desuscribirse del auth listener también
-  });
+onUnmounted(() => {
+  if (unsubscribeCatalog) {
+    unsubscribeCatalog();
+  }
 });
 </script>
 
 <style scoped>
-/* ... (Los estilos siguen exactamente igual que antes) ... */
+/* Hereda los estilos base de .inventario-container (fondo oscuro, texto claro) */
+
 .sramaria-view {
+  /* Añadimos un poco más de padding superior para que respire */
   padding-top: 2rem;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
+/* --- Sección de Encabezado --- */
 .header-section {
   text-align: center;
   margin-bottom: 2rem;
 }
 
 .avatar-container {
+  font-size: 4rem;
   margin-bottom: 0.5rem;
+  /* Un pequeño efecto de rebote */
   animation: bounce 2s infinite ease-in-out;
-}
-
-.avatar-image {
-  height: 100px; 
-  width: auto;
-  display: block; 
-  margin: 0 auto;
 }
 
 @keyframes bounce {
@@ -218,10 +155,11 @@ onMounted(() => {
 
 .subtitle {
   margin: 0.5rem 0 0;
-  color: #008ba4;
+  color: #003860;
   font-size: 1rem;
 }
 
+/* --- Sección de Contenido y Botón --- */
 .content-section {
   max-width: 600px;
   text-align: center;
@@ -240,12 +178,13 @@ onMounted(() => {
   padding: 1rem 2.5rem;
   font-size: 1.2rem;
   font-weight: bold;
+  /* Usamos un gradiente para que destaque más */
   background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
   color: white;
   border: none;
-  border-radius: 50px; 
+  border-radius: 50px; /* Botón redondeado */
   cursor: pointer;
-  box-shadow: 0 4px 15px rgba(63, 81, 181, 0.4); 
+  box-shadow: 0 4px 15px rgba(63, 81, 181, 0.4); /* Sombra con el color primario */
   transition: all 0.3s ease;
 }
 
@@ -255,7 +194,7 @@ onMounted(() => {
 }
 
 .consulta-button:disabled {
-  background: #555; 
+  background: #555; /* Gris oscuro para deshabilitado */
   color: #aaa;
   cursor: not-allowed;
   box-shadow: none;
@@ -268,10 +207,12 @@ onMounted(() => {
     font-weight: 500;
 }
 
+/* --- Contenedor de Resultados (El panel hijo) --- */
 .results-container {
   width: 100%;
-  max-width: 800px; 
+  max-width: 800px; /* Un poco más ancho para la respuesta */
   padding: 0 1rem;
+  /* Animación de entrada suave */
   animation: slideUp 0.5s ease-out;
 }
 
@@ -280,6 +221,7 @@ onMounted(() => {
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* --- BARRA INFERIOR (Reutilizada) --- */
 .bottom-nav {
   display: flex;
   justify-content: space-around;

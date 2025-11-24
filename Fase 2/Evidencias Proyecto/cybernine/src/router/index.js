@@ -39,7 +39,7 @@ const routes = [
       {
         path: 'movimientos', // La URL completa será /app/movimientos
         name: 'Movimientos',
-        component: { template: '<div>Vista de Movimientos - Pendiente</div>' }, // Placeholder
+        component: () => import('../views/MovimientosView.vue'), // Carga perezosa
       },
       {
         path: 'configuracion', // La URL completa será /app/configuracion
