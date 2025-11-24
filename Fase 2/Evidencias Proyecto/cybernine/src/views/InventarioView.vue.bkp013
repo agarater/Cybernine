@@ -11,7 +11,7 @@
         />
         <span class="search-icon">🔍</span>
       </div>
-      <button class="filter-button" @click="showFilterNotice">
+      <button class="filter-button">
         <img src="/icons/filter-icon.png" alt="Filtrar" /> 
       </button>
     </div>
@@ -39,6 +39,7 @@
       /> 
 
       <div v-if="uiState !== 'initial'" class="product-form">
+        
         <div v-if="uiState === 'newProduct'" class="new-product-fields">
           <h3>¡Producto Nuevo! Registra sus datos:</h3>
           
@@ -126,6 +127,7 @@
         </div>
 
         <div v-if="uiState === 'productFound'" class="found-product-wrapper">
+          
           <div class="found-details-left">
             <h3>Producto Encontrado:</h3>
             <p><strong>{{ productData.nombre }}</strong> - {{ productData.presentacion }}</p>
@@ -140,6 +142,7 @@
               <strong>{{ previewStock }}</strong> 
             </p>
           </div>
+
         </div>
 
         <div v-if="uiState === 'productFound'" class="movement-fields">
@@ -188,7 +191,7 @@
         
         <div class="card-footer">
           <small class="product-code">#{{ extractBarcode(producto.id) }}</small>
-          <button @click="openAdjustModal(producto)" class="adjust-button">Ajustar Stock</button>
+          <button @click="ajustarStock(producto.id, producto.calculatedStock)" class="adjust-button">Ajustar Stock</button>
         </div>
 
       </div>
@@ -202,21 +205,12 @@
       @close="closeEditModal" 
       @saved="recalculateAllStock"
     />
-
-    <AdjustStockModal
-      :isVisible="showAdjustModal"
-      :product="selectedProductToAdjust"
-      @close="closeAdjustModal"
-      @confirm-adjust="handleStockAdjustmentConfirmed"
-    />
-
     <DeleteConfirmationModal
       :isVisible="showDeleteConfirmModal"
       :productName="productToDelete ? productToDelete.nombre : ''"
       @confirm="handleDeleteConfirmed"
       @cancel="showDeleteConfirmModal = false"
     />
-
     <nav class="bottom-nav">
       <router-link to="/app/inventario" class="nav-item router-link-active">
         <img src="/icons/catalog-icon.png" alt="Catálogo" /> <span>Catálogo</span>
@@ -245,8 +239,6 @@ import {
 } from 'firebase/firestore';
 import BarcodeScanner from '@/components/BarcodeScanner.vue';
 import EditProductModal from '@/components/EditProductModal.vue'; 
-// NUEVO IMPORT
-import AdjustStockModal from '@/components/AdjustStockModal.vue';
 import DeleteConfirmationModal from '@/components/DeleteConfirmationModal.vue';
 import { useRouter } from 'vue-router';
 
@@ -264,17 +256,13 @@ const newProductDisplayPrice = ref('');
 const showNewProductWarning = ref(false);
 let newProductWarningTimeout = null;
 
-// --- ESTADO PARA MODALES ---
+// Estado para modales
 const showEditModal = ref(false);
 const selectedProductToEdit = ref(null); 
 const showDeleteConfirmModal = ref(false);
 const productToDelete = ref(null);
 
-// NUEVO: Estado para el modal de ajuste
-const showAdjustModal = ref(false);
-const selectedProductToAdjust = ref(null);
-
-// Stock actual del producto encontrado al escanear
+// NUEVO: Stock actual del producto encontrado al escanear
 const currentFoundStock = ref(0);
 
 // Estado para errores de validación del formulario
@@ -307,14 +295,14 @@ const movementData = reactive({
 const productsCatalog = ref([]); 
 const router = useRouter(); 
 
-// --- UTILIDAD DE FORMATO (SIN CAMBIOS) ---
+// --- UTILIDAD DE FORMATO ---
 const formatCurrency = (value) => {
   if (value === null || value === undefined) return '';
   let num = value.toString().replace(/\./g, '');
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 };
 
-// --- MANEJO DEL INPUT DE PRECIO (SIN CAMBIOS) ---
+// --- MANEJO DEL INPUT DE PRECIO (Nuevo Producto) ---
 const handleNewProductPriceInput = (event) => {
   const inputValue = event.target.value;
   const lastChar = inputValue.slice(-1);
@@ -332,7 +320,7 @@ const handleNewProductPriceInput = (event) => {
   productData.precio = cleanValue === '' ? null : parseInt(cleanValue);
 };
 
-// --- FUNCIÓN DE VALIDACIÓN DE CAMPOS (SIN CAMBIOS) ---
+// --- FUNCIÓN DE VALIDACIÓN DE CAMPOS ---
 const validateField = (field) => {
   formTouched[field] = true;
   if (!productData[field] || productData[field].trim() === '') {
@@ -342,17 +330,10 @@ const validateField = (field) => {
   }
 };
 
-// --- FUNCIÓN PARA CANCELAR REGISTRO (SIN CAMBIOS) ---
+// --- FUNCIÓN PARA CANCELAR REGISTRO ---
 const cancelarRegistro = () => {
   resetForm();
 };
-
-// --- FUNCIÓN PARA INDICAR "DISPONIBLE EN ACTUALIZACIÓN FUTURA" ---
-const showFilterNotice = () => {
-  alert('Disponible en futura actualización');
-};
-
-
 
 const resetForm = () => {
   scannedCode.value = '';
@@ -363,10 +344,10 @@ const resetForm = () => {
   saveError.value = '';
   Object.keys(formErrors).forEach(key => formErrors[key] = false);
   Object.keys(formTouched).forEach(key => formTouched[key] = false);
-  currentFoundStock.value = 0;
+  currentFoundStock.value = 0; // Resetear stock encontrado
 };
 
-// --- FUNCIONES AUXILIARES (SIN CAMBIOS) ---
+// --- FUNCIONES AUXILIARES ---
 const getUniqueProductId = (barcode) => {
   if (!auth.currentUser) return null;
   return `${auth.currentUser.uid}_${barcode}`;
@@ -382,7 +363,7 @@ const extractBarcode = (fullId) => {
   return fullId; 
 };
 
-// --- Computed Property para filtrar productos (SIN CAMBIOS) ---
+// --- Computed Property para filtrar productos ---
 const filteredProducts = computed(() => {
   if (!searchQuery.value) {
     return productsCatalog.value.filter(product => !product.eliminado);
@@ -401,12 +382,13 @@ const filteredProducts = computed(() => {
   });
 });
 
-// --- Computed Property para previsualizar el stock resultante (SIN CAMBIOS) ---
+// --- NUEVO: Computed Property para previsualizar el stock resultante ---
 const previewStock = computed(() => {
   const cantidadIngresada = movementData.cantidad || 0;
   if (movementData.tipo === 'entrada') {
     return currentFoundStock.value + cantidadIngresada;
   } else {
+    // Salida
     return currentFoundStock.value - cantidadIngresada;
   }
 });
@@ -417,7 +399,7 @@ const handleCodeScanned = (code) => {
   buscarProducto(); 
 };
 
-// --- FUNCIÓN 1: Buscar Producto (SIN CAMBIOS) ---
+// --- FUNCIÓN 1: Buscar Producto ---
 const buscarProducto = async () => {
   if (!scannedCode.value) return;
   lookupError.value = '';
@@ -437,17 +419,20 @@ const buscarProducto = async () => {
         uiState.value = 'initial';
         return;
       }
+      // Llenar datos del producto
       productData.nombre = data.nombre;
       productData.presentacion = data.presentacion;
       productData.marca = data.marca || '';
       productData.precio = data.precio; 
       
+      // NUEVO: Buscar el stock actual de este producto en el catálogo ya cargado
       const foundInCatalog = productsCatalog.value.find(p => p.id === uniqueId);
       currentFoundStock.value = foundInCatalog ? foundInCatalog.calculatedStock : 0;
 
       uiState.value = 'productFound';
       movementData.cantidad = null; 
     } else {
+      // Producto nuevo
       productData.nombre = '';
       productData.presentacion = '';
       productData.marca = '';
@@ -455,7 +440,7 @@ const buscarProducto = async () => {
       newProductDisplayPrice.value = '';
       uiState.value = 'newProduct';
       movementData.cantidad = null; 
-      currentFoundStock.value = 0;
+      currentFoundStock.value = 0; // Stock inicial es 0
       
       const today = new Date();
       const yyyy = today.getFullYear();
@@ -474,7 +459,7 @@ const buscarProducto = async () => {
   }
 };
 
-// --- FUNCIÓN PARA REGISTRAR PRODUCTO NUEVO (SIN CAMBIOS) ---
+// --- FUNCIÓN PARA REGISTRAR PRODUCTO NUEVO ---
 const registrarMovimientoNuevo = async () => {
   validateField('nombre');
   validateField('presentacion');
@@ -532,7 +517,7 @@ const registrarMovimientoNuevo = async () => {
   }
 };
 
-// --- FUNCIÓN PARA REGISTRAR MOVIMIENTO (PRODUCTO EXISTENTE) (SIN CAMBIOS) ---
+// --- FUNCIÓN PARA REGISTRAR MOVIMIENTO (PRODUCTO EXISTENTE) ---
 const registrarMovimientoExistente = async () => {
   if (!movementData.cantidad || movementData.cantidad <= 0) {
     saveError.value = "La cantidad debe ser mayor a cero para un movimiento.";
@@ -562,6 +547,7 @@ const registrarMovimientoExistente = async () => {
 
     console.log("Movimiento registrado:", movementData);
     resetForm();
+    // Al guardar, el snapshot listener actualizará el catálogo automáticamente
     
   } catch (error) {
     console.error("Error al registrar movimiento:", error);
@@ -613,45 +599,44 @@ const recalculateAllStock = async () => {
   }
 };
 
-// --- NUEVAS FUNCIONES PARA EL MODAL DE AJUSTE ---
-
-const openAdjustModal = (product) => {
-  selectedProductToAdjust.value = product;
-  showAdjustModal.value = true;
-};
-
-const closeAdjustModal = () => {
-  showAdjustModal.value = false;
-  selectedProductToAdjust.value = null;
-};
-
-// Esta función reemplaza a la antigua 'ajustarStock' que usaba prompt
-const handleStockAdjustmentConfirmed = async ({ productId, diferencia }) => {
+// --- FUNCIÓN 4: Ajustar Stock Manualmente (SIN CAMBIOS) ---
+const ajustarStock = async (productId, currentCalculatedStock) => {
   if (!auth.currentUser) {
     alert("Debes iniciar sesión.");
     return;
   }
+  
+  const productName = productsCatalog.value.find(p => p.id === productId)?.nombre || productId;
+  const newTotalStockStr = prompt(`Stock actual de "${productName}": ${currentCalculatedStock}.\nIngresa la NUEVA cantidad TOTAL:`);
+  
+  if (newTotalStockStr === null) return;
 
-  // No necesitamos validar de nuevo, el modal ya lo hizo.
+  const newTotalStock = parseInt(newTotalStockStr);
+  if (isNaN(newTotalStock) || newTotalStock < 0) {
+    alert("Cantidad inválida. Ingresa un número positivo o cero.");
+    return;
+  }
+
+  const diferencia = newTotalStock - currentCalculatedStock;
+  if (diferencia === 0) {
+    alert("No hay cambios en el stock.");
+    return;
+  }
 
   saving.value = true; 
-  // Usamos una variable de error global, aunque lo ideal sería una local para el modal, 
-  // pero para simplificar usaremos la existente si ocurre error de red.
   saveError.value = ''; 
-  
   try {
     await addDoc(collection(db, "inventory_movements"), {
       productId: productId,
       userId: auth.currentUser.uid,
       tipo: 'ajuste', 
-      cantidad: diferencia, // La diferencia ya viene calculada del modal
+      cantidad: diferencia, 
       timestamp: Timestamp.now(), 
       motivo: 'Ajuste manual'
     });
-    // El snapshot listener se encargará de actualizar la UI
   } catch (error) {
     console.error("Error al registrar ajuste:", error);
-    alert("Error al guardar el ajuste: " + error.message);
+    saveError.value = "Error al guardar el ajuste: " + error.message;
   } finally {
     saving.value = false;
   }
@@ -749,7 +734,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* --- ESTILOS GENERALES (SIN CAMBIOS) --- */
+/* --- ESTILOS GENERALES --- */
 :root {
   --primary-color: #3f51b5;
   --secondary-color: #2196F3;
@@ -782,7 +767,7 @@ body {
   box-sizing: border-box;
 }
 
-/* --- BARRA SUPERIOR (SIN CAMBIOS) --- */
+/* --- BARRA SUPERIOR --- */
 .top-bar {
   display: flex;
   align-items: center;
@@ -801,7 +786,7 @@ body {
 .filter-button { background: none; border: none; padding: 0.5rem; cursor: pointer; flex-shrink: 0; }
 .filter-button img { width: 1.5rem; height: 1.5rem; vertical-align: middle; }
 
-/* --- SECCIÓN DE REGISTRO (SIN CAMBIOS) --- */
+/* --- SECCIÓN DE REGISTRO --- */
 .scan-register-section {
   background-color: #ffffff !important; 
   padding: 1.25rem;
@@ -822,12 +807,13 @@ body {
 .scan-button { background-color: var(--secondary-color); color: white; }
 .product-form { margin-top: 1.25rem; padding: 1rem; border: 1px solid var(--border-color); border-radius: 8px; background-color: #fcfcfc !important; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05); color: var(--text-dark); }
 
-/* --- NUEVOS ESTILOS PARA EL FORMULARIO DE PRODUCTO NUEVO (SIN CAMBIOS) --- */
+/* --- NUEVOS ESTILOS PARA EL FORMULARIO DE PRODUCTO NUEVO --- */
 .new-product-fields h3 { margin-top: 0; color: var(--primary-color); }
 
 .input-field-container {
   margin-bottom: 1rem;
 }
+/* Estilo para inputs con error */
 .input-error {
   border: 2px solid var(--error-color) !important;
   background-color: #fff0f0 !important;
@@ -845,6 +831,7 @@ body {
   color: var(--text-dark);
 }
 
+/* Inputs generales del formulario */
 .new-product-fields input[type="text"],
 .new-product-fields input[type="number"],
 .movement-fields input, 
@@ -860,14 +847,17 @@ body {
   transition: border-color 0.3s;
 }
 
+/* Sección de Fecha y Ayuda */
 .date-field-container { margin-bottom: 1.5rem; }
 .date-field-container input[type="date"] {
   display: block; width: 100%; padding: 0.6rem; border: 1px solid #ddd; border-radius: 5px; font-size: 0.9rem; box-sizing: border-box; color: var(--text-dark);
 }
 .date-helper-text { font-size: 0.8rem; color: #777; margin-top: 0.5rem; font-style: italic; }
 
+/* Botones de Acción del Formulario (Lado a Lado) */
 .form-actions { display: flex; gap: 1rem; margin-top: 1.5rem; }
 
+/* Estilo base para ambos botones en el grupo */
 .form-actions button {
   flex: 1;
   padding: 0.8rem;
@@ -880,14 +870,16 @@ body {
 
 .cancel-button { background-color: #e0e0e0; color: var(--text-dark); }
 
+/* ARREGLO DEFINITIVO PARA EL BOTÓN ACEPTAR */
 .form-accept-button {
   background-color: var(--success-color);
   color: white;
-  margin-top: 0 !important; 
-  width: auto !important;   
+  margin-top: 0 !important; /* Anula el margen global */
+  width: auto !important;   /* Anula el ancho global */
 }
 
-/* --- ESTILOS PARA "PRODUCTO ENCONTRADO" (SIN CAMBIOS) --- */
+/* --- NUEVO: ESTILOS PARA "PRODUCTO ENCONTRADO" CON DOS COLUMNAS --- */
+/* El contenedor principal del bloque verde */
 .found-product-wrapper {
     background-color: #e8f5e9 !important;
     padding: 1rem;
@@ -895,16 +887,18 @@ body {
     margin-bottom: 1.25rem;
     border: 1px solid #c8e6c9;
     color: var(--text-dark);
+    /* Configuración Flexbox para las dos columnas */
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap; 
+    flex-wrap: wrap; /* Permite que se apilen en móviles muy pequeños si es necesario */
     gap: 1rem;
 }
 
+/* Columna izquierda (detalles) */
 .found-details-left {
-    flex: 1; 
-    min-width: 60%; 
+    flex: 1; /* Ocupa el espacio disponible */
+    min-width: 60%; /* Asegura que tenga un ancho mínimo decente */
 }
 .found-details-left h3 { margin-top: 0; color: #388e3c; font-size: 1.1rem; }
 .found-details-left p { margin: 0.3rem 0; color: #444; font-size: 0.9rem; }
@@ -913,35 +907,40 @@ body {
     font-size: 1rem !important;
 }
 
+/* Columna derecha (stock gigante) */
 .found-stock-right {
     display: flex;
     flex-direction: column;
-    align-items: flex-end; 
+    align-items: flex-end; /* Alinea el texto y el número a la derecha */
     justify-content: center;
 }
 
+/* Estilos específicos para el número grande de previsualización */
 .preview-number strong {
+    /* Un poco más pequeño que en las tarjetas para que quepa bien */
     font-size: 3rem; 
     line-height: 1;
 }
 
+/* Media Query para móviles: apilar verticalmente si la pantalla es muy estrecha */
 @media (max-width: 480px) {
     .found-product-wrapper {
         flex-direction: column;
         align-items: stretch;
     }
     .found-stock-right {
-        align-items: center; 
+        align-items: center; /* Centrar en móvil */
         margin-top: 1rem;
     }
 }
+/* --------------------------------------------------------------- */
 
 
 .error-message { color: var(--error-color); font-size: 0.85rem; margin-top: 0.75rem; text-align: center; }
 hr { margin: 2rem 1rem; border: 0; border-top: 1px solid #eee; }
 h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5rem; }
 
-/* --- GRID DE PRODUCTOS (SIN CAMBIOS) --- */
+/* --- GRID DE PRODUCTOS --- */
 .product-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -950,7 +949,7 @@ h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5r
   margin-bottom: 1.5rem;
 }
 
-/* --- TARJETA DE PRODUCTO (SIN CAMBIOS) --- */
+/* --- TARJETA DE PRODUCTO --- */
 .product-card {
   background-color: #ffffff !important;
   padding: 1rem;
@@ -962,6 +961,7 @@ h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5r
   gap: 0rem;
 }
 
+/* SECCIÓN SUPERIOR: Info compacta */
 .card-top-section {
   display: flex;
   flex-direction: column;
@@ -986,15 +986,20 @@ h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5r
   margin: 0;
 }
 .product-price-line {
+  /*font-weight: bold;*/
   color: #000000;
 }
 
+/* SECCIÓN CENTRAL: Stock Gigante con Etiqueta */
 .card-center-stock {
   display: flex;
   justify-content: center;
-  align-items: baseline; 
-  gap: 0rem;
-  padding: 0rem 0; 
+  align-items: baseline; /* Alinea la etiqueta pequeña con la base del número gigante */
+  gap: 0rem; /* Espacio entre "Cantidad:" y el número */
+  
+  /* --- AQUÍ AJUSTAS EL ESPACIO VERTICAL --- */
+  padding: 0rem 0; /* Cambia 0.1rem por 0 (más pegado) o 1rem (más separado) */
+  /* --------------------------------------- */
 }
 
 .stock-label-prefix {
@@ -1011,6 +1016,7 @@ h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5r
 .stock-medium { color: var(--accent-color); }
 .stock-low { color: var(--error-color); }
 
+/* SECCIÓN INFERIOR: Pie de página con separador */
 .card-footer { 
   display: flex; 
   justify-content: space-between; 
@@ -1024,7 +1030,7 @@ h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5r
 .adjust-button:disabled { background-color: #ccc; cursor: not-allowed; }
 
 
-/* INPUT DE PRECIO CON ADVERTENCIA (SIN CAMBIOS) */
+/* INPUT DE PRECIO CON ADVERTENCIA */
 .price-input-wrapper {
   position: relative;
   display: flex;

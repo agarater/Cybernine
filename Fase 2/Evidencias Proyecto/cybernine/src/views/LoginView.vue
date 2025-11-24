@@ -72,7 +72,7 @@ const handleLogin = async () => {
     const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value);
     console.log("¡Inicio de sesión exitoso!", userCredential.user);
     // Redirigimos al usuario a la página de inventario
-    router.push('/inventario');
+    router.push('/app/inventario');
   } catch (error) {
     // Si algo sale mal, mostramos una alerta
     console.error("Error al iniciar sesión:", error.message);
@@ -97,10 +97,10 @@ const handleRegister = async () => {
 </script>
 
 <style scoped>
-
-
 .login-container {
-  background-color: var(--card-dark);
+  /* Estas reglas son CRUCIALES para sobrescribir las del body global */
+  background-color: var(--background-dark, #1a1a2e); /* Fuerza el fondo oscuro para el login */
+  color: var(--text-light, #e0e0e0); /* Fuerza el texto claro para el login */
   border-radius: 15px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   padding: 40px 30px;
@@ -128,53 +128,45 @@ const handleRegister = async () => {
   pointer-events: none;
 }
 
+/* --- CORRECCIÓN AQUÍ: Ajustamos el header para que el logo toque los bordes --- */
 .login-header {
-  margin-bottom: 35px;
+  margin-bottom: 20px; /* Reducimos un poco el margen inferior */
   position: relative;
   z-index: 1;
 
-  /* Elimina espacio interno que empuja el logo */
-  padding: 0;  
-
-  /* Alineación total del logo */
-  text-align: center; /* Mantiene centrado el texto "Bienvenido" */
-}
-
-.app-logo {
-  /* ocupa todo el ancho del card, invadiendo el padding lateral */
-  width: calc(100% + 60px);        /* 60px = 30px izq + 30px der del .login-container */
-  margin: -40px -30px 15px -30px;  /* -40px compensa el padding-top:40px; -30px compensa laterales */
+  /* CAMBIO CLAVE: Eliminamos padding para que el logo llegue a los bordes */
+  padding-top: 0;
+  padding-left: 0;
+  padding-right: 0;
   
-  /* importante para que no quede un “gap” y se recorte bien */
-  display: block;
-  height: auto;
-  object-fit: cover;
-
-  /* opcional, se ve más integrado con el card */
-  border-radius: 15px 15px 0 0;
-  border: none;
-  box-shadow: none;
-  transition: all 0.25s ease-in-out;
+  text-align: center; 
 }
 
-
-/* Esto es un bkp del "app-logo" en caso de querer dejarlo con un circulo
+/* --- CORRECCIÓN AQUÍ: Ajustamos el logo para llenar el espacio --- */
 .app-logo {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  object-fit: cover;
-  margin-bottom: 15px;
-  border: 2px solid var(--primary-color);
-  box-shadow: 0 0 15px rgba(76, 175, 80, 0.4);
+  display: block; 
+  width: 100%;       /* ¡Ocupa todo el ancho disponible! */
+  height: auto; 
+  object-fit: contain; 
+  margin-bottom: 15px; /* Espacio antes del "Bienvenido" */
+  
+  /* Quitamos márgenes laterales automáticos y negativos */
+  margin-left: 0; 
+  margin-right: 0;
+  margin-top: 0;
+
+  /* Quitamos límites y bordes */
+  max-width: none;
+  border-radius: 0; 
+  border: none; 
+  box-shadow: none; 
 }
-*/
 
 /* Renombramos .app-title a .welcome-subtitle y ajustamos tamaño */
 .welcome-subtitle { 
   font-size: 1.5em; /* Más pequeño que el título principal */
   font-weight: 500; /* Menos pesado */
-  color: var(--text-dark); /* Un color un poco más suave */
+  color: var(--text-light); /* Un color un poco más suave */
   letter-spacing: 0.5px;
   margin: 0; /* Sin márgenes extra */
   text-align: center;
@@ -194,7 +186,7 @@ const handleRegister = async () => {
 .input-label {
   display: block;
   font-size: 0.9em;
-  color: var(--text-dark);
+  color: var(--text-light);
   margin-bottom: 8px;
   font-weight: 500;
 }
@@ -242,7 +234,7 @@ const handleRegister = async () => {
 }
 
 .remember-me {
-  color: var(--text-dark);
+  color: var(--text-light);
   display: flex;
   align-items: center;
   cursor: pointer;
@@ -341,26 +333,10 @@ const handleRegister = async () => {
   min-width: 140px; /* Asegura un tamaño mínimo en móvil */
 }
 
-.social-button .social-icon {
-  width: 20px;
-  height: 20px;
-  margin-right: 10px;
-}
-
-.social-button.google:hover {
-  background-color: #db4437; /* Google red */
-  border-color: #c23321;
-}
-
-.social-button.apple:hover {
-  background-color: #000000; /* Apple black */
-  border-color: #333333;
-}
-
 .signup-link {
   margin-top: 35px;
   font-size: 0.9em;
-  color: var(--text-dark);
+  color: var(--text-light);
   position: relative;
   z-index: 1;
 }
@@ -385,7 +361,7 @@ const handleRegister = async () => {
   }
 
   .welcome-subtitle { /* Cambiamos el nombre */
-  font-size: 1.3em; /* Lo hacemos un poco más pequeño para esta pantalla */
+    font-size: 1.3em; /* Lo hacemos un poco más pequeño para esta pantalla */
   }
 
   .social-buttons {
@@ -396,10 +372,6 @@ const handleRegister = async () => {
     width: 100%; /* Ocupar todo el ancho disponible */
   }
 
-  .app-logo {
-    width: calc(100% + 40px);        /* 20px izq + 20px der */
-    margin: -30px -20px 15px -20px;  /* -30px compensa padding-top:30px; -20px compensa laterales */
-  }
 }
 
 @media (max-width: 350px) {
@@ -408,7 +380,7 @@ const handleRegister = async () => {
   }
 
   .welcome-subtitle { /* Cambiamos el nombre */
-  font-size: 1.2em; /* Aún más pequeño para pantallas muy chicas */
+    font-size: 1.2em; /* Aún más pequeño para pantallas muy chicas */
   }
 
   .input-label,
@@ -423,4 +395,5 @@ const handleRegister = async () => {
     padding: 12px;
   }
 }
+
 </style>

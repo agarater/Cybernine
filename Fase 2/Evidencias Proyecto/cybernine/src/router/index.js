@@ -1,7 +1,12 @@
 // src/router/index.js
 
 import { createRouter, createWebHistory } from 'vue-router';
-import { getAuth, onAuthStateChanged } from 'firebase/auth'; // Importa Firebase Auth
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/firebase/config';
+
+// Importa tu nuevo componente de layout
+import AppLayout from '../layouts/AppLayout.vue'; 
+// Las vistas hijas no necesitan importarse aquí si se cargan de forma perezosa.
 
 // Definición de las rutas de la aplicación
 const routes = [
@@ -17,21 +22,35 @@ const routes = [
     meta: { requiresAuth: false } // No requiere autenticación
   },
   {
-    path: '/inventario',
-    name: 'Inventario',
-    component: () => import('../views/InventarioView.vue'),
-    meta: { requiresAuth: true } // Sí requiere autenticación
+    path: '/app', // Ruta base para todo lo que usará el AppLayout
+    component: AppLayout, // Carga el componente de layout
+    meta: { requiresAuth: true }, // Todas las rutas dentro de este grupo requieren autenticación
+    children: [ // Rutas hijas que se renderizarán dentro del <router-view /> de AppLayout
+      {
+        path: 'inventario', // La URL completa será /app/inventario
+        name: 'Inventario',
+        component: () => import('../views/InventarioView.vue'), // Carga perezosa
+      },
+      {
+        path: 'sramaria', // La URL completa será /app/sramaria
+        name: 'SraMaria', // Cambiado a 'SraMaria' (PascalCase por convención para nombres de rutas con Layout)
+        component: () => import('../views/SraMariaView.vue'), // Carga perezosa
+      },
+      {
+        path: 'movimientos', // La URL completa será /app/movimientos
+        name: 'Movimientos',
+        component: { template: '<div>Vista de Movimientos - Pendiente</div>' }, // Placeholder
+      },
+      {
+        path: 'configuracion', // La URL completa será /app/configuracion
+        name: 'Configuracion',
+        component: { template: '<div>Vista de Configuración - Pendiente</div>' }, // Placeholder
+      },
+      // Puedes añadir más rutas aquí que compartan el mismo layout
+    ]
   },
-  // Agrega aquí más rutas protegidas o no protegidas
-  // Ejemplo:
-  // {
-  //   path: '/perfil',
-  //   name: 'Perfil',
-  //   component: () => import('../views/ProfileView.vue'),
-  //   meta: { requiresAuth: true }
-  // },
   {
-    path: '/:catchAll(.*)', // Ruta comodín para 404 - siempre al final
+    path: '/:catchAll(.*)', // Ruta comodín para 404 - siempre al final y fuera del grupo /app
     name: 'NotFound',
     component: () => import('../views/NotFoundView.vue'),
     meta: { requiresAuth: false } // Un 404 no requiere autenticación
@@ -40,7 +59,7 @@ const routes = [
 
 // Crea la instancia del router
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(process.env.BASE_URL),
   routes,
 });
 
@@ -48,10 +67,8 @@ const router = createRouter({
 // Se ejecuta antes de cada navegación para verificar autenticación
 
 router.beforeEach(async (to, from, next) => {
-  const auth = getAuth(); // Obtén la instancia de Firebase Auth
 
-  // Espera a que Firebase Auth se inicialice y determine el estado del usuario
-  // Esto es fundamental para evitar redirecciones prematuras
+  // Espera a que Firebase Auth se inicialice...
   const isAuthenticated = await new Promise(resolve => {
     const unsubscribe = onAuthStateChanged(auth, user => {
       unsubscribe(); // Deja de escuchar después de obtener el estado inicial
@@ -60,7 +77,7 @@ router.beforeEach(async (to, from, next) => {
   });
 
   // Lógica de protección de rutas
-  if (to.meta.requiresAuth) { // Si la ruta a la que se intenta acceder requiere autenticación
+  if (to.meta.requiresAuth) { // Si la ruta a la que se intenta acceder requiere autenticación (es decir, '/app' y sus hijos)
     if (isAuthenticated) {
       next(); // Usuario autenticado, permite el acceso
     } else {
@@ -70,7 +87,8 @@ router.beforeEach(async (to, from, next) => {
   } else { // Si la ruta NO requiere autenticación (ej. Login, Home, NotFound)
     // Si el usuario ya está autenticado e intenta ir al Login o Home (que redirige a Login)
     if ((to.name === 'Login' || to.name === 'Home') && isAuthenticated) {
-      next({ name: 'Inventario' }); // Redirige a Inventario para evitar que vea la página de login de nuevo
+      // Redirige al inventario bajo el nuevo path '/app/inventario'
+      next({ path: '/app/inventario' }); 
     } else {
       next(); // Permite el acceso a la ruta (ya sea Login, Home, NotFound, o cualquier otra pública)
     }

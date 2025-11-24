@@ -11,7 +11,7 @@
         />
         <span class="search-icon">🔍</span>
       </div>
-      <button class="filter-button" @click="showFilterNotice">
+      <button class="filter-button">
         <img src="/icons/filter-icon.png" alt="Filtrar" /> 
       </button>
     </div>
@@ -39,6 +39,7 @@
       /> 
 
       <div v-if="uiState !== 'initial'" class="product-form">
+        
         <div v-if="uiState === 'newProduct'" class="new-product-fields">
           <h3>¡Producto Nuevo! Registra sus datos:</h3>
           
@@ -98,7 +99,7 @@
             </div>
           </div>
 
-           <div class="input-field-container">
+          <div class="input-field-container">
             <label for="newQuantity" class="field-label">Cantidad Inicial (Opcional):</label>
             <input 
               type="number" 
@@ -117,29 +118,17 @@
 
           <div class="form-actions">
             <button @click="cancelarRegistro" class="action-button cancel-button" :disabled="saving">Cancelar</button>
-            <button @click="registrarMovimientoNuevo" class="primary-button form-accept-button" :disabled="saving">
-              {{ saving ? 'Guardando...' : 'Aceptar' }}
-            </button>
+            <button @click="registrarMovimientoNuevo" class="action-button accept-button" :disabled="saving">{{ saving ? 'Guardando...' : 'Aceptar' }}</button>
           </div>
           <p v-if="saveError" class="error-message">{{ saveError }}</p>
 
         </div>
 
-        <div v-if="uiState === 'productFound'" class="found-product-wrapper">
-          <div class="found-details-left">
-            <h3>Producto Encontrado:</h3>
-            <p><strong>{{ productData.nombre }}</strong> - {{ productData.presentacion }}</p>
-            <p v-if="productData.marca">Marca: {{ productData.marca }}</p>
-            <p>Precio: ${{ productData.precio ? formatCurrency(productData.precio) : 'No definido' }}</p>
-            <p class="current-stock-line">Stock Actual: <strong>{{ currentFoundStock }}</strong></p> 
-          </div>
-
-          <div class="found-stock-right">
-             <span class="stock-label-prefix">Resultante:</span>
-             <p class="stock-big-number preview-number" :class="{'stock-low': previewStock <= 5, 'stock-medium': previewStock > 5 && previewStock <= 10, 'stock-high': previewStock > 10}">
-              <strong>{{ previewStock }}</strong> 
-            </p>
-          </div>
+        <div v-if="uiState === 'productFound'" class="found-product-info">
+          <h3>Producto Encontrado:</h3>
+          <p><strong>{{ productData.nombre }}</strong> - {{ productData.presentacion }}</p>
+          <p v-if="productData.marca">Marca: {{ productData.marca }}</p>
+          <p>Precio: ${{ productData.precio ? formatCurrency(productData.precio) : 'No definido' }}</p> 
         </div>
 
         <div v-if="uiState === 'productFound'" class="movement-fields">
@@ -151,7 +140,7 @@
           <input type="number" placeholder="Cantidad" v-model.number="movementData.cantidad" required min="1" />
           <input type="date" placeholder="Fecha Vencimiento (Opcional)" v-model="movementData.fechaVencimiento" />
           
-          <button @click="registrarMovimientoExistente" :disabled="!movementData.cantidad || saving" class="action-button primary-button btn-block">
+          <button @click="registrarMovimientoExistente" :disabled="!movementData.cantidad || saving" class="primary-button btn-block">
             {{ saving ? 'Guardando...' : 'Registrar Movimiento' }}
           </button>
           <p v-if="saveError" class="error-message">{{ saveError }}</p>
@@ -188,7 +177,7 @@
         
         <div class="card-footer">
           <small class="product-code">#{{ extractBarcode(producto.id) }}</small>
-          <button @click="openAdjustModal(producto)" class="adjust-button">Ajustar Stock</button>
+          <button @click="ajustarStock(producto.id, producto.calculatedStock)" class="adjust-button">Ajustar Stock</button>
         </div>
 
       </div>
@@ -202,21 +191,12 @@
       @close="closeEditModal" 
       @saved="recalculateAllStock"
     />
-
-    <AdjustStockModal
-      :isVisible="showAdjustModal"
-      :product="selectedProductToAdjust"
-      @close="closeAdjustModal"
-      @confirm-adjust="handleStockAdjustmentConfirmed"
-    />
-
     <DeleteConfirmationModal
       :isVisible="showDeleteConfirmModal"
       :productName="productToDelete ? productToDelete.nombre : ''"
       @confirm="handleDeleteConfirmed"
       @cancel="showDeleteConfirmModal = false"
     />
-
     <nav class="bottom-nav">
       <router-link to="/app/inventario" class="nav-item router-link-active">
         <img src="/icons/catalog-icon.png" alt="Catálogo" /> <span>Catálogo</span>
@@ -245,8 +225,6 @@ import {
 } from 'firebase/firestore';
 import BarcodeScanner from '@/components/BarcodeScanner.vue';
 import EditProductModal from '@/components/EditProductModal.vue'; 
-// NUEVO IMPORT
-import AdjustStockModal from '@/components/AdjustStockModal.vue';
 import DeleteConfirmationModal from '@/components/DeleteConfirmationModal.vue';
 import { useRouter } from 'vue-router';
 
@@ -264,18 +242,11 @@ const newProductDisplayPrice = ref('');
 const showNewProductWarning = ref(false);
 let newProductWarningTimeout = null;
 
-// --- ESTADO PARA MODALES ---
+// Estado para modales
 const showEditModal = ref(false);
 const selectedProductToEdit = ref(null); 
 const showDeleteConfirmModal = ref(false);
 const productToDelete = ref(null);
-
-// NUEVO: Estado para el modal de ajuste
-const showAdjustModal = ref(false);
-const selectedProductToAdjust = ref(null);
-
-// Stock actual del producto encontrado al escanear
-const currentFoundStock = ref(0);
 
 // Estado para errores de validación del formulario
 const formErrors = reactive({
@@ -307,14 +278,14 @@ const movementData = reactive({
 const productsCatalog = ref([]); 
 const router = useRouter(); 
 
-// --- UTILIDAD DE FORMATO (SIN CAMBIOS) ---
+// --- UTILIDAD DE FORMATO ---
 const formatCurrency = (value) => {
   if (value === null || value === undefined) return '';
   let num = value.toString().replace(/\./g, '');
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 };
 
-// --- MANEJO DEL INPUT DE PRECIO (SIN CAMBIOS) ---
+// --- MANEJO DEL INPUT DE PRECIO (Nuevo Producto) ---
 const handleNewProductPriceInput = (event) => {
   const inputValue = event.target.value;
   const lastChar = inputValue.slice(-1);
@@ -332,7 +303,7 @@ const handleNewProductPriceInput = (event) => {
   productData.precio = cleanValue === '' ? null : parseInt(cleanValue);
 };
 
-// --- FUNCIÓN DE VALIDACIÓN DE CAMPOS (SIN CAMBIOS) ---
+// --- FUNCIÓN DE VALIDACIÓN DE CAMPOS ---
 const validateField = (field) => {
   formTouched[field] = true;
   if (!productData[field] || productData[field].trim() === '') {
@@ -342,17 +313,10 @@ const validateField = (field) => {
   }
 };
 
-// --- FUNCIÓN PARA CANCELAR REGISTRO (SIN CAMBIOS) ---
+// --- FUNCIÓN PARA CANCELAR REGISTRO ---
 const cancelarRegistro = () => {
   resetForm();
 };
-
-// --- FUNCIÓN PARA INDICAR "DISPONIBLE EN ACTUALIZACIÓN FUTURA" ---
-const showFilterNotice = () => {
-  alert('Disponible en futura actualización');
-};
-
-
 
 const resetForm = () => {
   scannedCode.value = '';
@@ -363,10 +327,9 @@ const resetForm = () => {
   saveError.value = '';
   Object.keys(formErrors).forEach(key => formErrors[key] = false);
   Object.keys(formTouched).forEach(key => formTouched[key] = false);
-  currentFoundStock.value = 0;
 };
 
-// --- FUNCIONES AUXILIARES (SIN CAMBIOS) ---
+// --- FUNCIONES AUXILIARES ---
 const getUniqueProductId = (barcode) => {
   if (!auth.currentUser) return null;
   return `${auth.currentUser.uid}_${barcode}`;
@@ -382,7 +345,7 @@ const extractBarcode = (fullId) => {
   return fullId; 
 };
 
-// --- Computed Property para filtrar productos (SIN CAMBIOS) ---
+// --- Computed Property para filtrar productos ---
 const filteredProducts = computed(() => {
   if (!searchQuery.value) {
     return productsCatalog.value.filter(product => !product.eliminado);
@@ -401,23 +364,13 @@ const filteredProducts = computed(() => {
   });
 });
 
-// --- Computed Property para previsualizar el stock resultante (SIN CAMBIOS) ---
-const previewStock = computed(() => {
-  const cantidadIngresada = movementData.cantidad || 0;
-  if (movementData.tipo === 'entrada') {
-    return currentFoundStock.value + cantidadIngresada;
-  } else {
-    return currentFoundStock.value - cantidadIngresada;
-  }
-});
-
 const handleCodeScanned = (code) => {
   scannedCode.value = code; 
   showScanner.value = false; 
   buscarProducto(); 
 };
 
-// --- FUNCIÓN 1: Buscar Producto (SIN CAMBIOS) ---
+// --- FUNCIÓN 1: Buscar Producto ---
 const buscarProducto = async () => {
   if (!scannedCode.value) return;
   lookupError.value = '';
@@ -441,10 +394,6 @@ const buscarProducto = async () => {
       productData.presentacion = data.presentacion;
       productData.marca = data.marca || '';
       productData.precio = data.precio; 
-      
-      const foundInCatalog = productsCatalog.value.find(p => p.id === uniqueId);
-      currentFoundStock.value = foundInCatalog ? foundInCatalog.calculatedStock : 0;
-
       uiState.value = 'productFound';
       movementData.cantidad = null; 
     } else {
@@ -455,7 +404,6 @@ const buscarProducto = async () => {
       newProductDisplayPrice.value = '';
       uiState.value = 'newProduct';
       movementData.cantidad = null; 
-      currentFoundStock.value = 0;
       
       const today = new Date();
       const yyyy = today.getFullYear();
@@ -474,7 +422,7 @@ const buscarProducto = async () => {
   }
 };
 
-// --- FUNCIÓN PARA REGISTRAR PRODUCTO NUEVO (SIN CAMBIOS) ---
+// --- FUNCIÓN PARA REGISTRAR PRODUCTO NUEVO ---
 const registrarMovimientoNuevo = async () => {
   validateField('nombre');
   validateField('presentacion');
@@ -532,7 +480,7 @@ const registrarMovimientoNuevo = async () => {
   }
 };
 
-// --- FUNCIÓN PARA REGISTRAR MOVIMIENTO (PRODUCTO EXISTENTE) (SIN CAMBIOS) ---
+// --- FUNCIÓN PARA REGISTRAR MOVIMIENTO (PRODUCTO EXISTENTE) ---
 const registrarMovimientoExistente = async () => {
   if (!movementData.cantidad || movementData.cantidad <= 0) {
     saveError.value = "La cantidad debe ser mayor a cero para un movimiento.";
@@ -613,45 +561,44 @@ const recalculateAllStock = async () => {
   }
 };
 
-// --- NUEVAS FUNCIONES PARA EL MODAL DE AJUSTE ---
-
-const openAdjustModal = (product) => {
-  selectedProductToAdjust.value = product;
-  showAdjustModal.value = true;
-};
-
-const closeAdjustModal = () => {
-  showAdjustModal.value = false;
-  selectedProductToAdjust.value = null;
-};
-
-// Esta función reemplaza a la antigua 'ajustarStock' que usaba prompt
-const handleStockAdjustmentConfirmed = async ({ productId, diferencia }) => {
+// --- FUNCIÓN 4: Ajustar Stock Manualmente (SIN CAMBIOS) ---
+const ajustarStock = async (productId, currentCalculatedStock) => {
   if (!auth.currentUser) {
     alert("Debes iniciar sesión.");
     return;
   }
+  
+  const productName = productsCatalog.value.find(p => p.id === productId)?.nombre || productId;
+  const newTotalStockStr = prompt(`Stock actual de "${productName}": ${currentCalculatedStock}.\nIngresa la NUEVA cantidad TOTAL:`);
+  
+  if (newTotalStockStr === null) return;
 
-  // No necesitamos validar de nuevo, el modal ya lo hizo.
+  const newTotalStock = parseInt(newTotalStockStr);
+  if (isNaN(newTotalStock) || newTotalStock < 0) {
+    alert("Cantidad inválida. Ingresa un número positivo o cero.");
+    return;
+  }
+
+  const diferencia = newTotalStock - currentCalculatedStock;
+  if (diferencia === 0) {
+    alert("No hay cambios en el stock.");
+    return;
+  }
 
   saving.value = true; 
-  // Usamos una variable de error global, aunque lo ideal sería una local para el modal, 
-  // pero para simplificar usaremos la existente si ocurre error de red.
   saveError.value = ''; 
-  
   try {
     await addDoc(collection(db, "inventory_movements"), {
       productId: productId,
       userId: auth.currentUser.uid,
       tipo: 'ajuste', 
-      cantidad: diferencia, // La diferencia ya viene calculada del modal
+      cantidad: diferencia, 
       timestamp: Timestamp.now(), 
       motivo: 'Ajuste manual'
     });
-    // El snapshot listener se encargará de actualizar la UI
   } catch (error) {
     console.error("Error al registrar ajuste:", error);
-    alert("Error al guardar el ajuste: " + error.message);
+    saveError.value = "Error al guardar el ajuste: " + error.message;
   } finally {
     saving.value = false;
   }
@@ -749,22 +696,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* --- ESTILOS GENERALES (SIN CAMBIOS) --- */
-:root {
-  --primary-color: #3f51b5;
-  --secondary-color: #2196F3;
-  --accent-color: #ff9800;
-  --success-color: #4CAF50;
-  --error-color: #f44336;
-  --text-dark: #333;
-  --text-light: #555;
-  --bg-light: #f4f6f9;
-  --card-bg: #ffffff;
-  --border-color: #e0e0e0;
-  --dark-bg-color: #1a1a2e; 
-  --dark-text-color: #e0e0e0; 
-}
-
+/* =========================================================
+   1) ESTILOS GENERALES DEL CONTENEDOR DE LA VISTA
+   - Afectan al wrapper principal: <div class="inventario-container">
+   ========================================================= */
 body {
   margin: 0;
   padding: 0;
@@ -775,35 +710,85 @@ body {
 }
 
 .inventario-container {
-  background-color: #1a1a2e; 
-  padding-bottom: 80px; 
-  min-height: 100%; 
+  /* Fondo oscuro general de la pantalla de Inventario */
+  background-color: #1a1a2e;
+  padding-bottom: 80px;  /* deja espacio para la bottom-nav fija */
+  min-height: 100%;
   color: #e0e0e0;
   box-sizing: border-box;
 }
 
-/* --- BARRA SUPERIOR (SIN CAMBIOS) --- */
+
+/* =========================================================
+   2) BARRA SUPERIOR DE BÚSQUEDA
+   - Afecta al bloque <div class="top-bar"> y su input de búsqueda
+   ========================================================= */
 .top-bar {
   display: flex;
   align-items: center;
   padding: 1rem;
-  background-color: #ffffff !important; 
+  background-color: #ffffff !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   margin-bottom: 1.5rem;
   box-sizing: border-box;
   color: var(--text-dark);
 }
 
-.search-input-container { flex-grow: 1; position: relative; margin-right: 0.5rem; }
-.search-input { width: 100%; padding: 0.75rem 0.75rem 0.75rem 2.5rem; border: 1px solid var(--border-color); border-radius: 25px; font-size: 0.95rem; background-color: var(--bg-light); color: var(--text-dark); box-sizing: border-box; }
-.search-input::placeholder { color: #999; }
-.search-icon { position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%); color: var(--text-light); }
-.filter-button { background: none; border: none; padding: 0.5rem; cursor: pointer; flex-shrink: 0; }
-.filter-button img { width: 1.5rem; height: 1.5rem; vertical-align: middle; }
+.search-input-container {
+  /* Contenedor del input de búsqueda y el icono 🔍 */
+  flex-grow: 1;
+  position: relative;
+  margin-right: 0.5rem;
+}
 
-/* --- SECCIÓN DE REGISTRO (SIN CAMBIOS) --- */
+.search-input {
+  /* Input "Buscar productos..." */
+  width: 100%;
+  padding: 0.75rem 0.75rem 0.75rem 2.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 25px;
+  font-size: 0.95rem;
+  background-color: var(--bg-light);
+  color: var(--text-dark);
+  box-sizing: border-box;
+}
+
+.search-input::placeholder {
+  color: #999;
+}
+
+.search-icon {
+  /* Icono 🔍 dentro del campo de búsqueda */
+  position: absolute;
+  left: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-light);
+}
+
+.filter-button {
+  /* Botón de filtro (icono al lado derecho de la barra de búsqueda) */
+  background: none;
+  border: none;
+  padding: 0.5rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.filter-button img {
+  width: 1.5rem;
+  height: 1.5rem;
+  vertical-align: middle;
+}
+
+
+/* =========================================================
+   3) SECCIÓN DE REGISTRO DE MOVIMIENTO
+   - Afecta al bloque blanco donde se escanea/ingresa código
+   ========================================================= */
 .scan-register-section {
-  background-color: #ffffff !important; 
+  /* Tarjeta blanca "Registro de Movimiento" */
+  background-color: #ffffff !important;
   padding: 1.25rem;
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -811,64 +796,212 @@ body {
   box-sizing: border-box;
   color: var(--text-dark);
 }
-.scan-register-section h2 { color: var(--primary-color); margin-top: 0; margin-bottom: 1.25rem; font-size: 1.35rem; text-align: center; }
-.scan-input-group { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 1rem; }
-.scan-input-group label { font-weight: bold; color: var(--text-dark); flex-basis: 100%; margin-bottom: 0.25rem; }
-.scan-input-group input[type="text"] { flex-grow: 1; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 5px; font-size: 0.9rem; box-sizing: border-box; min-width: 0; color: var(--text-dark); }
-.action-button { padding: 0.6rem 0.9rem; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; white-space: nowrap; font-size: 0.9rem; flex-shrink: 0; }
-.action-button:disabled { background-color: #e0e0e0; color: #aaa; cursor: not-allowed; }
 
-.primary-button { background-color: var(--success-color); color: white; margin-top: 1rem; width: 100%; }
-.scan-button { background-color: var(--secondary-color); color: white; }
-.product-form { margin-top: 1.25rem; padding: 1rem; border: 1px solid var(--border-color); border-radius: 8px; background-color: #fcfcfc !important; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05); color: var(--text-dark); }
+.scan-register-section h2 {
+  /* Título "Registro de Movimiento" */
+  color: var(--primary-color);
+  margin-top: 0;
+  margin-bottom: 1.25rem;
+  font-size: 1.35rem;
+  text-align: center;
+}
 
-/* --- NUEVOS ESTILOS PARA EL FORMULARIO DE PRODUCTO NUEVO (SIN CAMBIOS) --- */
-.new-product-fields h3 { margin-top: 0; color: var(--primary-color); }
-
-.input-field-container {
+.scan-input-group {
+  /* Línea del label + input del código + botones Buscar / Escanear */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
   margin-bottom: 1rem;
 }
+
+.scan-input-group label {
+  font-weight: bold;
+  color: var(--text-dark);
+  flex-basis: 100%;
+  margin-bottom: 0.25rem;
+}
+
+.scan-input-group input[type="text"] {
+  flex-grow: 1;
+  padding: 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  min-width: 0;
+  color: var(--text-dark);
+}
+
+
+/* =========================================================
+   4) BOTONES GENERALES (Buscar, Escanear, Cancelar, Aceptar...)
+   - Afecta a cualquier <button class="action-button"> de esta vista
+   ========================================================= */
+.action-button {
+  /* Estilo base para todos los botones de acción de la sección */
+  padding: 0.6rem 0.9rem;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.action-button:disabled {
+  /* Estado deshabilitado genérico */
+  background-color: #e0e0e0;
+  color: #aaa;
+  cursor: not-allowed;
+}
+
+/* Botón que ocupa todo el ancho (Registrar Movimiento) */
+.btn-block {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+/* Botón "📷 Escanear" */
+.scan-button {
+  background-color: var(--secondary-color);
+  color: white;
+}
+
+/* Botón "Cancelar" del formulario de nuevo producto */
+.cancel-button {
+  background-color: #e0e0e0;
+  color: var(--text-dark);
+}
+
+/* --- BOTÓN ACEPTAR — versión final ---
+   - Afecta al botón "Aceptar" cuando creas un producto nuevo
+   - En el template: <button class="action-button accept-button"> */
+.accept-button {
+  background-color: #4CAF50 !important;  /* Verde fijo */
+  color: #ffffff !important;
+  border: none !important;
+  font-weight: bold;
+  padding: 0.8rem;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.accept-button:disabled {
+  /* Botón aceptar deshabilitado mientras saving === true */
+  background-color: #a5d6a7 !important;  /* Verde más claro */
+  color: #ffffff !important;
+  cursor: not-allowed;
+}
+
+
+/* =========================================================
+   5) FORMULARIO DE NUEVO PRODUCTO Y CAMPOS
+   - Afecta al bloque v-if="uiState === 'newProduct'"
+   ========================================================= */
+.product-form {
+  /* Contenedor general del formulario (nuevo producto / movimientos) */
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: #fcfcfc !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+  color: var(--text-dark);
+}
+
+.new-product-fields h3 {
+  /* Título "¡Producto Nuevo! Registra sus datos:" */
+  margin-top: 0;
+  color: var(--primary-color);
+}
+
+.input-field-container {
+  /* Wrapper de cada input y su mensaje de error */
+  margin-bottom: 1rem;
+}
+
+/* Estilo para inputs con error de validación */
 .input-error {
   border: 2px solid var(--error-color) !important;
   background-color: #fff0f0 !important;
 }
+
 .field-error-text {
+  /* Texto "Campo obligatorio" bajo los inputs */
   color: var(--error-color);
   font-size: 0.8rem;
   margin-top: 0.25rem;
   display: block;
 }
+
 .field-label {
+  /* Labels de campos como "Cantidad Inicial" y "Fecha de Ingreso" */
   font-weight: bold;
   display: block;
   margin-bottom: 0.5rem;
   color: var(--text-dark);
 }
 
+/* Inputs del formulario de nuevo producto y movimiento */
 .new-product-fields input[type="text"],
 .new-product-fields input[type="number"],
-.movement-fields input, 
-.movement-fields select { 
-  display: block; 
-  width: 100%; 
-  padding: 0.6rem; 
-  border: 1px solid #ddd; 
-  border-radius: 5px; 
-  font-size: 0.9rem; 
-  box-sizing: border-box; 
-  color: var(--text-dark); 
+.movement-fields input,
+.movement-fields select {
+  display: block;
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  color: var(--text-dark);
   transition: border-color 0.3s;
 }
 
-.date-field-container { margin-bottom: 1.5rem; }
-.date-field-container input[type="date"] {
-  display: block; width: 100%; padding: 0.6rem; border: 1px solid #ddd; border-radius: 5px; font-size: 0.9rem; box-sizing: border-box; color: var(--text-dark);
+
+/* =========================================================
+   6) FECHA DE INGRESO Y TEXTO DE AYUDA
+   - Afecta a la caja de fecha del nuevo producto
+   ========================================================= */
+.date-field-container {
+  /* Wrapper del campo de fecha y su texto explicativo */
+  margin-bottom: 1.5rem;
 }
-.date-helper-text { font-size: 0.8rem; color: #777; margin-top: 0.5rem; font-style: italic; }
 
-.form-actions { display: flex; gap: 1rem; margin-top: 1.5rem; }
+.date-field-container input[type="date"] {
+  display: block;
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  color: var(--text-dark);
+}
 
-.form-actions button {
+.date-helper-text {
+  /* Texto "De no cambiar la fecha..." */
+  font-size: 0.8rem;
+  color: #777;
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+
+/* =========================================================
+   7) BOTONES DE ACCIÓN DEL FORMULARIO (CANCELAR / ACEPTAR)
+   - Afecta a <div class="form-actions"> bajo el formulario nuevo producto
+   ========================================================= */
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.form-actions .action-button {
+  /* Hace que Cancelar y Aceptar ocupen el mismo ancho */
   flex: 1;
   padding: 0.8rem;
   font-size: 1rem;
@@ -878,71 +1011,63 @@ body {
   font-weight: bold;
 }
 
-.cancel-button { background-color: #e0e0e0; color: var(--text-dark); }
 
-.form-accept-button {
-  background-color: var(--success-color);
-  color: white;
-  margin-top: 0 !important; 
-  width: auto !important;   
+/* =========================================================
+   8) MENSAJES DE PRODUCTO ENCONTRADO Y ERRORES
+   - Afecta a la tarjeta verde y mensajes de error bajo formularios
+   ========================================================= */
+.found-product-info {
+  /* Bloque verde "Producto Encontrado" */
+  background-color: #e8f5e9 !important;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
+  border: 1px solid #c8e6c9;
+  color: var(--text-dark);
 }
 
-/* --- ESTILOS PARA "PRODUCTO ENCONTRADO" (SIN CAMBIOS) --- */
-.found-product-wrapper {
-    background-color: #e8f5e9 !important;
-    padding: 1rem;
-    border-radius: 8px;
-    margin-bottom: 1.25rem;
-    border: 1px solid #c8e6c9;
-    color: var(--text-dark);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap; 
-    gap: 1rem;
+.found-product-info h3 {
+  margin-top: 0;
+  color: #388e3c;
+  font-size: 1.1rem;
 }
 
-.found-details-left {
-    flex: 1; 
-    min-width: 60%; 
-}
-.found-details-left h3 { margin-top: 0; color: #388e3c; font-size: 1.1rem; }
-.found-details-left p { margin: 0.3rem 0; color: #444; font-size: 0.9rem; }
-.current-stock-line {
-    margin-top: 0.5rem !important;
-    font-size: 1rem !important;
+.found-product-info p {
+  margin: 0.3rem 0;
+  color: #444;
+  font-size: 0.9rem;
 }
 
-.found-stock-right {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end; 
-    justify-content: center;
+.error-message {
+  /* Mensajes como "Error al guardar" o "La cantidad debe ser mayor a cero..." */
+  color: var(--error-color);
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+  text-align: center;
 }
 
-.preview-number strong {
-    font-size: 3rem; 
-    line-height: 1;
+hr {
+  /* Separador entre sección de registro y catálogo */
+  margin: 2rem 1rem;
+  border: 0;
+  border-top: 1px solid #eee;
 }
 
-@media (max-width: 480px) {
-    .found-product-wrapper {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .found-stock-right {
-        align-items: center; 
-        margin-top: 1rem;
-    }
+h2 {
+  /* Título "Catálogo de Productos" */
+  color: #ffffff;
+  font-size: 1.35rem;
+  text-align: center;
+  margin-bottom: 1.5rem;
 }
 
 
-.error-message { color: var(--error-color); font-size: 0.85rem; margin-top: 0.75rem; text-align: center; }
-hr { margin: 2rem 1rem; border: 0; border-top: 1px solid #eee; }
-h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5rem; }
-
-/* --- GRID DE PRODUCTOS (SIN CAMBIOS) --- */
+/* =========================================================
+   9) GRID Y TARJETAS DEL CATÁLOGO
+   - Afecta al listado de productos en “Catálogo de Productos”
+   ========================================================= */
 .product-grid {
+  /* Contenedor tipo grid de las tarjetas de producto */
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1rem;
@@ -950,8 +1075,8 @@ h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5r
   margin-bottom: 1.5rem;
 }
 
-/* --- TARJETA DE PRODUCTO (SIN CAMBIOS) --- */
 .product-card {
+  /* Tarjeta individual de cada producto */
   background-color: #ffffff !important;
   padding: 1rem;
   border-radius: 10px;
@@ -962,39 +1087,77 @@ h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5r
   gap: 0rem;
 }
 
+
+/* ----- Cabecera de la tarjeta (nombre + iconos editar/eliminar) ----- */
 .card-top-section {
   display: flex;
   flex-direction: column;
   gap: 0rem;
 }
 
-.card-header { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: flex-start; 
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: 0;
 }
-.product-name { font-size: 1.2rem; font-weight: bold; color: var(--text-dark); margin: 0; flex-grow: 1; line-height: 1.2; }
-.product-actions { display: flex; gap: 0.5rem; flex-shrink: 0; margin-left: 0.5rem; }
-.edit-button, .delete-button { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 0.2rem; line-height: 1; }
-.edit-button { color: #777; }
-.delete-button { color: var(--error-color); }
 
-.product-info-line, .product-price-line {
+.product-name {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--text-dark);
+  margin: 0;
+  flex-grow: 1;
+  line-height: 1.2;
+}
+
+.product-actions {
+  /* Contiene los botones ✏️ y ❌ */
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+}
+
+.edit-button,
+.delete-button {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.2rem;
+  line-height: 1;
+}
+
+.edit-button {
+  color: #777;
+}
+
+.delete-button {
+  color: var(--error-color);
+}
+
+.product-info-line,
+.product-price-line {
+  /* Líneas de texto "Marca", "Presentación", "Precio" */
   color: var(--text-dark);
   font-size: 0.9rem;
   margin: 0;
 }
+
 .product-price-line {
   color: #000000;
 }
 
+
+/* ----- Zona central: stock gigante ----- */
 .card-center-stock {
+  /* Zona donde se muestra "Cantidad: XX" con número grande */
   display: flex;
   justify-content: center;
-  align-items: baseline; 
+  align-items: baseline; /* Alinea la etiqueta pequeña con la base del número gigante */
   gap: 0rem;
-  padding: 0rem 0; 
+  padding: 0rem 0;
 }
 
 .stock-label-prefix {
@@ -1007,50 +1170,87 @@ h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5r
   font-size: 3.5rem;
   line-height: 1;
 }
-.stock-high { color: var(--success-color); }
-.stock-medium { color: var(--accent-color); }
-.stock-low { color: var(--error-color); }
 
-.card-footer { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  margin-top: auto; 
-  padding-top: 0.75rem; 
+/* Colores según nivel de stock */
+.stock-high {
+  color: var(--success-color);
+}
+.stock-medium {
+  color: var(--accent-color);
+}
+.stock-low {
+  color: var(--error-color);
+}
+
+
+/* ----- Pie de tarjeta: código + botón Ajustar ----- */
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 0.75rem;
   border-top: 1px solid #eee;
 }
-.product-code { font-size: 0.8rem; color: #000000; margin: 0; }
-.adjust-button { padding: 0.4rem 0.8rem; font-size: 0.85rem; background-color: var(--accent-color); color: white; border: none; border-radius: 5px; cursor: pointer; flex-shrink: 0; }
-.adjust-button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+.product-code {
+  font-size: 0.8rem;
+  color: #000000;
+  margin: 0;
+}
+
+.adjust-button {
+  /* Botón "Ajustar" */
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.adjust-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
 
 
-/* INPUT DE PRECIO CON ADVERTENCIA (SIN CAMBIOS) */
+/* =========================================================
+   10) INPUT DE PRECIO CON ADVERTENCIA
+   - Afecta al campo Precio (Opcional) del formulario nuevo producto
+   ========================================================= */
 .price-input-wrapper {
   position: relative;
   display: flex;
   align-items: center;
   margin-bottom: 0.75rem;
 }
+
 .currency-symbol {
+  /* Símbolo $ fijo dentro del input de precio */
   position: absolute;
   left: 10px;
   color: #555;
   font-weight: bold;
   z-index: 2;
 }
+
 .price-input {
   padding-left: 25px !important;
-  width: 100%; 
+  width: 100%;
   padding: 0.6rem 0.6rem 0.6rem 25px;
-  border: 1px solid #ddd; 
-  border-radius: 5px; 
-  font-size: 0.9rem; 
-  box-sizing: border-box; 
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
   color: var(--text-dark);
   margin-bottom: 0 !important;
 }
 
 .warning-tooltip {
+  /* Tooltip rojo "ingrese sólo números" sobre el input de precio */
   position: absolute;
   top: -35px;
   left: 0;
@@ -1059,11 +1259,12 @@ h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5r
   padding: 5px 10px;
   border-radius: 4px;
   font-size: 0.8rem;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
   white-space: nowrap;
   animation: fadeIn 0.2s;
   z-index: 10;
 }
+
 .warning-tooltip::after {
   content: '';
   position: absolute;
@@ -1074,11 +1275,24 @@ h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5r
   border-color: #d32f2f transparent transparent transparent;
 }
 
-@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
 
-/* --- BARRA INFERIOR (SIN CAMBIOS) --- */
+/* =========================================================
+   11) BARRA DE NAVEGACIÓN INFERIOR
+   - Afecta al <nav class="bottom-nav"> con los router-link
+   ========================================================= */
 .bottom-nav {
+  /* Barra fija de navegación inferior */
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -1087,28 +1301,95 @@ h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5r
   left: 0;
   width: 100%;
   height: 65px;
-  background-color: #ffffff !important; 
+  background-color: #ffffff !important;
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   padding-bottom: env(safe-area-inset-bottom);
   box-sizing: border-box;
 }
-.nav-item { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #757575; font-size: 0.7rem; font-weight: 500; transition: color 0.3s ease; padding: 0.25rem; flex: 1; text-align: center; }
-.nav-item img { width: 1.5rem; height: 1.5rem; margin-bottom: 0.25rem; filter: grayscale(100%); transition: filter 0.3s ease; }
-.nav-item.router-link-active, .nav-item:hover { color: var(--primary-color); }
-.nav-item.router-link-active img, .nav-item:hover img { filter: none; }
 
+.nav-item {
+  /* Cada ítem de navegación (Catálogo, Movimientos, Sra. MarIA, Configuración) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: #757575;
+  font-size: 0.7rem;
+  font-weight: 500;
+  transition: color 0.3s ease;
+  padding: 0.25rem;
+  flex: 1;
+  text-align: center;
+}
+
+.nav-item img {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-bottom: 0.25rem;
+  filter: grayscale(100%);
+  transition: filter 0.3s ease;
+}
+
+/* Estado activo y hover de la navegación inferior */
+.nav-item.router-link-active,
+.nav-item:hover {
+  color: var(--primary-color);
+}
+
+.nav-item.router-link-active img,
+.nav-item:hover img {
+  filter: none;
+}
+
+
+/* =========================================================
+   12) MEDIA QUERIES (RESPONSIVE)
+   - Ajustes en pantallas medianas y grandes para centrar contenido
+   ========================================================= */
 @media (min-width: 768px) {
-  .top-bar, .scan-register-section, .product-grid { max-width: 1000px; margin-left: auto; margin-right: auto; }
-  .scan-input-group label { flex-basis: auto; margin-bottom: 0; }
-  .scan-input-group input[type="text"] { max-width: 250px; }
-  .action-button { padding: 0.6rem 1.2rem; }
-  .product-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
-  .nav-item { font-size: 0.85rem; }
-  .nav-item img { width: 1.8rem; height: 1.8rem; }
+  .top-bar,
+  .scan-register-section,
+  .product-grid {
+    /* Limita el ancho del contenido en pantallas medianas */
+    max-width: 1000px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .scan-input-group label {
+    flex-basis: auto;
+    margin-bottom: 0;
+  }
+
+  .scan-input-group input[type="text"] {
+    max-width: 250px;
+  }
+
+  .action-button {
+    padding: 0.6rem 1.2rem;
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+
+  .nav-item {
+    font-size: 0.85rem;
+  }
+
+  .nav-item img {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
 }
 
 @media (min-width: 1024px) {
-  .top-bar, .scan-register-section, .product-grid { max-width: 1200px; }
+  .top-bar,
+  .scan-register-section,
+  .product-grid {
+    /* Un poco más ancho en desktops grandes */
+    max-width: 1200px;
+  }
 }
 </style>

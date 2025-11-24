@@ -1,50 +1,134 @@
-/* src/assets/main.css */
+/* ===========================
+   Fuente global
+   =========================== */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
 
-/* --- Tus variables y fuente (sin cambios) --- */
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap'); /* Fuente moderna */
+
+/* ===========================
+   Para elementos globales
+   =========================== */
+
+:root {
+  --primary-color: #3f51b5;
+  --secondary-color: #2196F3;
+  --accent-color: #ff9800;
+  --success-color: #4CAF50;
+  --error-color: #f44336;
+  --text-dark: #333;
+  --text-light: #555;
+  --bg-light: #f4f6f9;
+  --card-bg: #ffffff;
+  --border-color: #e0e0e0;
+  --dark-bg-color: #1a1a2e; 
+  --dark-text-color: #e0e0e0; 
+}
 
 
-/* --- PASO 1: Box-sizing para TODO el universo --- */
+
+
+/* ===========================
+   Reset básico y box-sizing
+   =========================== */
 *,
 *::before,
 *::after {
-  box-sizing: border-box; /* ¡La regla de oro! */
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
+
+/* ===========================
+   Variables de color y tema
+   =========================== */
 :root {
+  /* Colores principales */
   --primary-color: #4CAF50;
   --secondary-color: #2196F3;
+
+  /* Tema oscuro (login) */
   --background-dark: #1a1a2e;
   --card-dark: #16213e;
   --text-light: #e0e0e0;
-  --text-dark: #cccccc;
+
+  /* Tema claro (app) */
+  --background-app-light: #f4f6f9;
+  --card-bg-light: #ffffff;
+  --text-dark: #333333;
+
+  /* Otros */
   --border-color: #0f3460;
   --input-bg: #0f3460;
   --button-hover: #3e8e41;
 }
 
-/* --- PASO 2: Body con padding adaptable --- */
+
+/* ===========================
+   Body por defecto = LOGIN
+   (centrado, fondo oscuro)
+   =========================== */
 body {
-  margin: 0;
   font-family: 'Montserrat', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--background-dark);
-  color: var(--text-light);
+
+  /* Layout centrado para el login */
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  padding: 20px; /* Padding por defecto para pantallas grandes */
-  /* Quitamos el box-sizing de aquí porque ya está arriba */
+  padding: 20px;
+
+  /* Tema oscuro por defecto (login) */
+  background-color: var(--background-dark);
+  color: var(--text-light);
 }
 
-/* --- PASO 3: Media Query para ajustar padding en móviles --- */
-/* Para pantallas más pequeñas que 500px (ajusta si quieres) */
+
+/* =========================================
+   Clase para el resto de la app (layout)
+   Se debe agregar .body-no-flex al <body>
+   cuando se entra a la app principal
+   ========================================= */
+.body-no-flex {
+  display: block !important;
+  justify-content: unset !important;
+  align-items: unset !important;
+  min-height: auto !important;
+  padding: 0 !important;
+
+  /* Tema claro para la app */
+  background-color: var(--background-app-light) !important;
+  color: var(--text-dark) !important;
+}
+
+
+/* ===========================
+   Ajuste para móviles (login)
+   =========================== */
 @media (max-width: 500px) {
-  body {
-    padding: 0px; /* Reducimos el padding */
-    /* O prueba con 0 si quieres que el contenedor toque los bordes: */
-    /* padding: 0; */
+  body:not(.body-no-flex) {
+    padding: 0; /* Menos padding para el login en pantallas pequeñas */
   }
+}
+
+
+/* ===========================
+   Ajustes globales suaves
+   (sin tocar colores de botones)
+   =========================== */
+
+/* Fuente consistente en elementos de formulario,
+   sin imponer colores para no romper estilos locales */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Enlaces sin subrayado por defecto, color heredado */
+a {
+  color: inherit;
+  text-decoration: none;
 }

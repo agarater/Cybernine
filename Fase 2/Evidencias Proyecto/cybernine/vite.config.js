@@ -12,7 +12,10 @@ export default defineConfig({
       // Ejemplo de uso: import MiComponente from '@/components/MiComponente.vue' en lugar de import MiComponente from '../../components/MiComponente.vue'.
       '@': path.resolve(__dirname, 'src'),
     }
-  }
+  },
+  build: {
+    chunkSizeWarningLimit: 1000, // Aumentamos el límite a 1000 kbs (1 MB)
+  }  
 })
 /*
 Sugerencia de Uso (Consideración Adicional):
