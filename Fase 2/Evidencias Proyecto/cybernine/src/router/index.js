@@ -44,7 +44,7 @@ const routes = [
       {
         path: 'configuracion', // La URL completa será /app/configuracion
         name: 'Configuracion',
-        component: { template: '<div>Vista de Configuración - Pendiente</div>' }, // Placeholder
+        component: () => import('../views/ConfiguracionView.vue'), // Carga perezosa
       },
       // Puedes añadir más rutas aquí que compartan el mismo layout
     ]
