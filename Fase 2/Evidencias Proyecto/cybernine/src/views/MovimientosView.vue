@@ -59,26 +59,7 @@
 
         </div>
       </div>
-
     </div>
-    
-    <nav class="bottom-nav">
-      <router-link to="/app/inventario" class="nav-item">
-        <img src="/icons/catalog-icon.png" alt="Catálogo" /> <span>Catálogo</span>
-      </router-link>
-      <router-link to="/app/movimientos" class="nav-item router-link-active">
-        <img src="/icons/movements-icon.png" alt="Movimientos" />
-        <span>Movimientos</span>
-      </router-link>
-      <router-link to="/app/sramaria" class="nav-item">
-        <img src="/icons/ai-icon.png" alt="Sra. MarIA" />
-        <span>Sra. MarIA</span>
-      </router-link>
-      <router-link to="/app/configuracion" class="nav-item">
-        <img src="/icons/config-icon.png" alt="Configuración" />
-        <span>Configuración</span>
-      </router-link>
-    </nav>
   </div>
 </template>
 
@@ -162,7 +143,7 @@ const getMovementVisuals = (movementDoc) => {
       visuals.typeClass = 'type-accent';
       visuals.icon = '🔧';
       visuals.reasonText = motivo || 'Ajuste manual';
-      visuals.quantityPrefix = movementDoc.cantidad >= 0 ? '+' : '';
+      visuals.quantityPrefix = movementDoc.cantidad >= 0 ? '+' : '-';
       break;
     default:
       visuals.typeClass = 'type-neutral';

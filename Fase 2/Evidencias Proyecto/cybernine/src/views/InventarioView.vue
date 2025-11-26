@@ -217,38 +217,41 @@
       @cancel="showDeleteConfirmModal = false"
     />
 
-    <nav class="bottom-nav">
-      <router-link to="/app/inventario" class="nav-item router-link-active">
-        <img src="/icons/catalog-icon.png" alt="Catálogo" /> <span>Catálogo</span>
-      </router-link>
-      <router-link to="/app/movimientos" class="nav-item">
-        <img src="/icons/movements-icon.png" alt="Movimientos" />
-        <span>Movimientos</span>
-      </router-link>
-      <router-link to="/app/sramaria" class="nav-item">
-        <img src="/icons/ai-icon.png" alt="Sra. MarIA" />
-        <span>Sra. MarIA</span>
-      </router-link>
-      <router-link to="/app/configuracion" class="nav-item">
-        <img src="/icons/config-icon.png" alt="Configuración" />
-        <span>Configuración</span>
-      </router-link>
-    </nav>
-  </div>
+    
+  <div v-if="showReactivationModal" class="modal-overlay">
+      <div class="modal-content">
+        <h3>Producto Eliminado</h3>
+        <p>
+          El producto <strong>"{{ productToReactivate?.nombre }}"</strong> (Cód: {{ productToReactivate ? extractBarcode(productToReactivate.id) : '' }}) fue eliminado anteriormente.
+        </p>
+        <p class="modal-question">¿Deseas reactivarlo para volver a usarlo?</p>
+        
+        <div class="modal-actions">
+          <button class="modal-btn cancel" @click="showReactivationModal = false">Cancelar</button>
+          <button class="modal-btn confirm" @click="confirmReactivation">Reactivar Producto</button>
+        </div>
+      </div>
+    </div>
+  </div> 
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'; 
-import { db, auth } from '@/firebase/config'; 
-import { 
-  collection, doc, getDoc, getDocs, setDoc, addDoc, query, where, onSnapshot, Timestamp, updateDoc 
+import { ref, reactive, onMounted, onUnmounted, computed, nextTick } from 'vue';
+import { db, auth } from '@/firebase/config';
+// --- CAMBIO: Se agregó 'updateDoc' a las importaciones ---
+import {
+  collection, doc, getDoc, getDocs, setDoc, addDoc, query, where, onSnapshot, Timestamp, updateDoc
 } from 'firebase/firestore';
 import BarcodeScanner from '@/components/BarcodeScanner.vue';
-import EditProductModal from '@/components/EditProductModal.vue'; 
-// NUEVO IMPORT
+import EditProductModal from '@/components/EditProductModal.vue';
 import AdjustStockModal from '@/components/AdjustStockModal.vue';
 import DeleteConfirmationModal from '@/components/DeleteConfirmationModal.vue';
 import { useRouter } from 'vue-router';
+// --- NUEVO: Importar useToast para notificaciones ---
+import { useToast } from 'vue-toastification';
+
+// Inicializar Toast
+const toast = useToast();
 
 // --- ESTADO Y VARIABLES REACTIVAS ---
 const scannedCode = ref('');
@@ -256,7 +259,7 @@ const uiState = ref('initial');
 const lookupError = ref('');
 const saveError = ref('');
 const saving = ref(false);
-const showScanner = ref(false); 
+const showScanner = ref(false);
 const searchQuery = ref('');
 
 // Variables para el input de precio mejorado (Nuevo Producto)
@@ -264,15 +267,18 @@ const newProductDisplayPrice = ref('');
 const showNewProductWarning = ref(false);
 let newProductWarningTimeout = null;
 
-// --- ESTADO PARA MODALES ---
+// --- ESTADO PARA MODALES EXISTENTES ---
 const showEditModal = ref(false);
-const selectedProductToEdit = ref(null); 
+const selectedProductToEdit = ref(null);
 const showDeleteConfirmModal = ref(false);
 const productToDelete = ref(null);
-
-// NUEVO: Estado para el modal de ajuste
 const showAdjustModal = ref(false);
 const selectedProductToAdjust = ref(null);
+
+// --- NUEVO: Estados para el Modal de Reactivación ---
+const showReactivationModal = ref(false);
+const productToReactivate = ref(null);
+// ----------------------------------------------------
 
 // Stock actual del producto encontrado al escanear
 const currentFoundStock = ref(0);
@@ -290,7 +296,7 @@ const formTouched = reactive({
   marca: false
 });
 
-const productData = reactive({ 
+const productData = reactive({
   nombre: '',
   presentacion: '',
   marca: '',
@@ -300,12 +306,12 @@ const productData = reactive({
 
 const movementData = reactive({
   tipo: 'entrada',
-  cantidad: null, 
+  cantidad: null,
   fechaVencimiento: null
 });
 
-const productsCatalog = ref([]); 
-const router = useRouter(); 
+const productsCatalog = ref([]);
+const router = useRouter();
 
 // --- UTILIDAD DE FORMATO (SIN CAMBIOS) ---
 const formatCurrency = (value) => {
@@ -318,7 +324,7 @@ const formatCurrency = (value) => {
 const handleNewProductPriceInput = (event) => {
   const inputValue = event.target.value;
   const lastChar = inputValue.slice(-1);
-  
+
   if (inputValue.length > 0 && isNaN(lastChar) && lastChar !== '.') {
     showNewProductWarning.value = true;
     if (newProductWarningTimeout) clearTimeout(newProductWarningTimeout);
@@ -353,7 +359,7 @@ const showFilterNotice = () => {
 };
 
 
-
+// --- FUNCIÓN MODIFICADA: resetForm ---
 const resetForm = () => {
   scannedCode.value = '';
   uiState.value = 'initial';
@@ -364,6 +370,9 @@ const resetForm = () => {
   Object.keys(formErrors).forEach(key => formErrors[key] = false);
   Object.keys(formTouched).forEach(key => formTouched[key] = false);
   currentFoundStock.value = 0;
+  // --- NUEVO: Reseteamos también los estados del modal de reactivación ---
+  showReactivationModal.value = false;
+  productToReactivate.value = null;
 };
 
 // --- FUNCIONES AUXILIARES (SIN CAMBIOS) ---
@@ -376,10 +385,10 @@ const extractBarcode = (fullId) => {
   if (fullId && typeof fullId === 'string' && fullId.includes('_')) {
     const parts = fullId.split('_');
     if (parts.length > 1) {
-       return parts[1]; 
+      return parts[1];
     }
   }
-  return fullId; 
+  return fullId;
 };
 
 // --- Computed Property para filtrar productos (SIN CAMBIOS) ---
@@ -412,12 +421,12 @@ const previewStock = computed(() => {
 });
 
 const handleCodeScanned = (code) => {
-  scannedCode.value = code; 
-  showScanner.value = false; 
-  buscarProducto(); 
+  scannedCode.value = code;
+  showScanner.value = false;
+  buscarProducto();
 };
 
-// --- FUNCIÓN 1: Buscar Producto (SIN CAMBIOS) ---
+// --- FUNCIÓN MODIFICADA: Buscar Producto ---
 const buscarProducto = async () => {
   if (!scannedCode.value) return;
   lookupError.value = '';
@@ -432,34 +441,42 @@ const buscarProducto = async () => {
 
     if (docSnap.exists()) {
       const data = docSnap.data();
+
+      // --- CAMBIO IMPORTANTE: Lógica de Reactivación ---
       if (data.eliminado) {
-        lookupError.value = "Este producto ha sido eliminado del catálogo.";
+        // EN LUGAR DE MOSTRAR ERROR, PREPARAMOS LA REACTIVACIÓN
+        productToReactivate.value = { id: uniqueId, ...data };
+        showReactivationModal.value = true;
+        // Volvemos al estado inicial mientras el usuario decide en el modal
         uiState.value = 'initial';
         return;
       }
+      // --------------------------------------------------
+
       productData.nombre = data.nombre;
       productData.presentacion = data.presentacion;
       productData.marca = data.marca || '';
-      productData.precio = data.precio; 
-      
+      productData.precio = data.precio;
+
       const foundInCatalog = productsCatalog.value.find(p => p.id === uniqueId);
       currentFoundStock.value = foundInCatalog ? foundInCatalog.calculatedStock : 0;
 
       uiState.value = 'productFound';
-      movementData.cantidad = null; 
+      movementData.cantidad = null;
     } else {
+      // Producto no existe, formulario de nuevo producto
       productData.nombre = '';
       productData.presentacion = '';
       productData.marca = '';
       productData.precio = null;
       newProductDisplayPrice.value = '';
       uiState.value = 'newProduct';
-      movementData.cantidad = null; 
+      movementData.cantidad = null;
       currentFoundStock.value = 0;
-      
+
       const today = new Date();
       const yyyy = today.getFullYear();
-      let mm = today.getMonth() + 1; 
+      let mm = today.getMonth() + 1;
       let dd = today.getDate();
       if (dd < 10) dd = '0' + dd;
       if (mm < 10) mm = '0' + mm;
@@ -473,6 +490,35 @@ const buscarProducto = async () => {
     uiState.value = 'initial';
   }
 };
+
+// --- NUEVA FUNCIÓN: Confirmar Reactivación ---
+const confirmReactivation = async () => {
+  if (!productToReactivate.value || !auth.currentUser) return;
+
+  try {
+    const productRef = doc(db, "products", productToReactivate.value.id);
+
+    // Solo cambiamos la bandera 'eliminado' a false.
+    await updateDoc(productRef, {
+      eliminado: false,
+      fechaReactivacion: Timestamp.now()
+    });
+
+    toast.success(`Producto "${productToReactivate.value.nombre}" reactivado correctamente.`);
+
+    // Cerrar modal y limpiar
+    showReactivationModal.value = false;
+    productToReactivate.value = null;
+    // Opcional: Limpiar el input de búsqueda para empezar de cero
+    scannedCode.value = '';
+
+  } catch (error) {
+    console.error("Error al reactivar producto:", error);
+    toast.error("No se pudo reactivar el producto.");
+  }
+};
+// ----------------------------------------------
+
 
 // --- FUNCIÓN PARA REGISTRAR PRODUCTO NUEVO (SIN CAMBIOS) ---
 const registrarMovimientoNuevo = async () => {
@@ -489,7 +535,7 @@ const registrarMovimientoNuevo = async () => {
     saveError.value = "Error: Debes iniciar sesión.";
     return;
   }
-  
+
   saving.value = true;
   saveError.value = '';
 
@@ -502,11 +548,11 @@ const registrarMovimientoNuevo = async () => {
     await setDoc(productRef, {
       nombre: productData.nombre,
       presentacion: productData.presentacion,
-      marca: productData.marca, 
-      precio: productData.precio, 
+      marca: productData.marca,
+      precio: productData.precio,
       userId: userId,
       eliminado: false,
-      fechaCreacion: fechaTimestamp 
+      fechaCreacion: fechaTimestamp
     });
 
     const cantidadInicial = (movementData.cantidad === null || movementData.cantidad === '') ? 0 : movementData.cantidad;
@@ -514,16 +560,16 @@ const registrarMovimientoNuevo = async () => {
     await addDoc(collection(db, "inventory_movements"), {
       productId: uniqueId,
       userId: userId,
-      tipo: 'entrada', 
+      tipo: 'entrada',
       cantidad: cantidadInicial,
-      fecha: fechaTimestamp, 
-      timestamp: Timestamp.now(), 
-      esMovimientoInicial: true 
+      fecha: fechaTimestamp,
+      timestamp: Timestamp.now(),
+      esMovimientoInicial: true
     });
 
     console.log("Producto nuevo y movimiento inicial registrado.");
     resetForm();
-    
+
   } catch (error) {
     console.error("Error al registrar nuevo producto:", error);
     saveError.value = "Error al guardar: " + error.message;
@@ -542,7 +588,7 @@ const registrarMovimientoExistente = async () => {
     saveError.value = "Error: Debes iniciar sesión.";
     return;
   }
-  
+
   saving.value = true;
   saveError.value = '';
 
@@ -562,7 +608,7 @@ const registrarMovimientoExistente = async () => {
 
     console.log("Movimiento registrado:", movementData);
     resetForm();
-    
+
   } catch (error) {
     console.error("Error al registrar movimiento:", error);
     saveError.value = "Error al guardar: " + error.message;
@@ -577,13 +623,13 @@ const recalculateAllStock = async () => {
   if (!auth.currentUser) return;
   const userId = auth.currentUser.uid;
 
-  const currentCatalog = JSON.parse(JSON.stringify(productsCatalog.value)); 
+  const currentCatalog = JSON.parse(JSON.stringify(productsCatalog.value));
   if (currentCatalog.length === 0) return;
 
   try {
     const movementsQuery = query(collection(db, "inventory_movements"), where("userId", "==", userId));
     const movementSnapshot = await getDocs(movementsQuery);
-    
+
     const movementsByProduct = {};
     movementSnapshot.forEach(doc => {
       const movement = doc.data();
@@ -598,7 +644,7 @@ const recalculateAllStock = async () => {
       const productMovements = movementsByProduct[product.id] || [];
 
       productMovements.forEach(move => {
-        if (move.tipo === 'entrada' || move.tipo === 'ajuste') { 
+        if (move.tipo === 'entrada' || move.tipo === 'ajuste') {
           stock += move.cantidad;
         } else if (move.tipo === 'salida') {
           stock -= move.cantidad;
@@ -613,8 +659,7 @@ const recalculateAllStock = async () => {
   }
 };
 
-// --- NUEVAS FUNCIONES PARA EL MODAL DE AJUSTE ---
-
+// --- FUNCIONES PARA MODALES EXISTENTES (SIN CAMBIOS) ---
 const openAdjustModal = (product) => {
   selectedProductToAdjust.value = product;
   showAdjustModal.value = true;
@@ -625,30 +670,22 @@ const closeAdjustModal = () => {
   selectedProductToAdjust.value = null;
 };
 
-// Esta función reemplaza a la antigua 'ajustarStock' que usaba prompt
 const handleStockAdjustmentConfirmed = async ({ productId, diferencia }) => {
   if (!auth.currentUser) {
     alert("Debes iniciar sesión.");
     return;
   }
-
-  // No necesitamos validar de nuevo, el modal ya lo hizo.
-
-  saving.value = true; 
-  // Usamos una variable de error global, aunque lo ideal sería una local para el modal, 
-  // pero para simplificar usaremos la existente si ocurre error de red.
-  saveError.value = ''; 
-  
+  saving.value = true;
+  saveError.value = '';
   try {
     await addDoc(collection(db, "inventory_movements"), {
       productId: productId,
       userId: auth.currentUser.uid,
-      tipo: 'ajuste', 
-      cantidad: diferencia, // La diferencia ya viene calculada del modal
-      timestamp: Timestamp.now(), 
+      tipo: 'ajuste',
+      cantidad: diferencia,
+      timestamp: Timestamp.now(),
       motivo: 'Ajuste manual'
     });
-    // El snapshot listener se encargará de actualizar la UI
   } catch (error) {
     console.error("Error al registrar ajuste:", error);
     alert("Error al guardar el ajuste: " + error.message);
@@ -657,14 +694,13 @@ const handleStockAdjustmentConfirmed = async ({ productId, diferencia }) => {
   }
 };
 
-// --- FUNCIONES DE GESTIÓN (Editar y Eliminar) (SIN CAMBIOS) ---
 const openEditModal = (product) => {
-  selectedProductToEdit.value = { ...product }; 
+  selectedProductToEdit.value = { ...product };
   showEditModal.value = true;
 };
 const closeEditModal = () => {
   showEditModal.value = false;
-  selectedProductToEdit.value = null; 
+  selectedProductToEdit.value = null;
 };
 
 const confirmDeleteProduct = (product) => {
@@ -696,7 +732,7 @@ const deleteProduct = async (productId) => {
 };
 
 // --- INICIALIZACIÓN (SIN CAMBIOS) ---
-let unsubscribeProducts = () => {}; 
+let unsubscribeProducts = () => {};
 let unsubscribeMovements = () => {};
 
 onMounted(() => {
@@ -704,21 +740,22 @@ onMounted(() => {
     if (user) {
       const userId = user.uid;
 
-      const productsQuery = query(collection(db, "products"), where("userId", "==", userId)); 
+      const productsQuery = query(collection(db, "products"), where("userId", "==", userId));
       unsubscribeProducts = onSnapshot(productsQuery, (productSnapshot) => {
         const catalogTemp = [];
         productSnapshot.forEach((doc) => {
           const data = doc.data();
+          // Solo mostramos los NO eliminados
           if (!data.eliminado) {
-            catalogTemp.push({ 
-              id: doc.id, 
+            catalogTemp.push({
+              id: doc.id,
               ...data,
               calculatedStock: 0
             });
           }
         });
-        productsCatalog.value = catalogTemp; 
-        recalculateAllStock(); 
+        productsCatalog.value = catalogTemp;
+        recalculateAllStock();
       }, (error) => {
         console.error("Error escuchando productos:", error);
       });
@@ -733,7 +770,7 @@ onMounted(() => {
       productsCatalog.value = [];
       if (unsubscribeProducts) unsubscribeProducts();
       if (unsubscribeMovements) unsubscribeMovements();
-      router.push('/login'); 
+      router.push('/login');
     }
   });
 
@@ -1110,5 +1147,86 @@ h2 { color: #ffffff; font-size: 1.35rem; text-align: center; margin-bottom: 1.5r
 
 @media (min-width: 1024px) {
   .top-bar, .scan-register-section, .product-grid { max-width: 1200px; }
+}
+
+/* --- NUEVOS ESTILOS: Modal de Reactivación --- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6); /* Fondo oscuro semi-transparente */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000; /* Asegurar que esté por encima de todo */
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.modal-content {
+  background-color: #ffffff;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+  animation: slideUp 0.3s ease-out;
+  color: var(--text-dark);
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  color: var(--text-dark);
+  font-size: 1.4rem;
+}
+
+.modal-question {
+  margin: 1.5rem 0;
+  font-weight: bold;
+  color: var(--primary-color);
+  font-size: 1.1rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.modal-btn {
+  padding: 0.8rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 1rem;
+}
+
+.modal-btn.cancel {
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+.modal-btn.cancel:hover {
+  background-color: #d0d0d0;
+}
+
+.modal-btn.confirm {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.modal-btn.confirm:hover {
+  background-color: var(--secondary-color);
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 </style>

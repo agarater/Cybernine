@@ -42,6 +42,11 @@ const routes = [
         component: () => import('../views/MovimientosView.vue'), // Carga perezosa
       },
       {
+        path: 'informe', // La URL completa será /app/informe
+        name: 'Informe',
+        component: () => import('../views/InformeView.vue'), // Carga perezosa
+      },
+      {
         path: 'configuracion', // La URL completa será /app/configuracion
         name: 'Configuracion',
         component: () => import('../views/ConfiguracionView.vue'), // Carga perezosa

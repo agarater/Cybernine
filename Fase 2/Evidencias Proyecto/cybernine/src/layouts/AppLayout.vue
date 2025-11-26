@@ -21,6 +21,11 @@
         <span>Sra. MarIA</span>
       </router-link>
       
+      <router-link to="/app/informe" class="nav-item">
+        <img src="/icons/kardex-icon.png" alt="Informe" />
+        <span>Informe</span>
+      </router-link>
+      
       <router-link to="/app/configuracion" class="nav-item">
         <img src="/icons/config-icon.png" alt="Configuración" />
         <span>Configuración</span>

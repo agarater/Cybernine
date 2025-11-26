@@ -41,25 +41,6 @@
         @update-loading="handleLoadingUpdate" 
       />
     </div>
-
-    <nav class="bottom-nav">
-      <router-link to="/app/inventario" class="nav-item">
-        <img src="/icons/catalog-icon.png" alt="Catálogo" /> <span>Catálogo</span>
-      </router-link>
-      <router-link to="/app/movimientos" class="nav-item">
-        <img src="/icons/movements-icon.png" alt="Movimientos" />
-        <span>Movimientos</span>
-      </router-link>
-      <router-link to="/app/sramaria" class="nav-item router-link-active">
-        <img src="/icons/ai-icon.png" alt="Sra. MarIA" />
-        <span>Sra. MarIA</span>
-      </router-link>
-      <router-link to="/app/configuracion" class="nav-item">
-        <img src="/icons/config-icon.png" alt="Configuración" />
-        <span>Configuración</span>
-      </router-link>
-    </nav>
-
   </div>
 </template>
 
